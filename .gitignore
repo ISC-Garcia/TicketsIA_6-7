@@ -218,3 +218,36 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+md/
+
+# Node
+node_modules
+logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.DS_Store
+coverage
+*.local
+*.tsbuildinfo
+.eslintcache
+
+# Editor directories and files
+front/.vscode/*
+!front/.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Vite
+dist-ssr
+*.timestamp-*-*.mjs
+
+# Vitest
+__screenshots__/
