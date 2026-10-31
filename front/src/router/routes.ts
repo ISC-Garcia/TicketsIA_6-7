@@ -7,6 +7,8 @@ declare module 'vue-router' {
     roles?: Role[]
     guest?: boolean
     title?: string
+    parent?: string
+    tabs?: Record<string, string>
   }
 }
 
@@ -20,7 +22,6 @@ export const ROLE_HOME: Record<Role, string> = {
 }
 
 export const routes: RouteRecordRaw[] = [
-  { path: '/', redirect: { name: 'login' } },
   {
     path: '/login',
     name: 'login',
@@ -28,70 +29,90 @@ export const routes: RouteRecordRaw[] = [
     meta: { guest: true },
   },
   {
-    path: '/registrar',
-    name: 'registrar',
-    component: placeholder,
-    meta: { roles: ['tecnico'], title: 'Registrar ticket' },
-  },
-  {
-    path: '/bandeja',
-    name: 'bandeja',
-    component: placeholder,
-    meta: { roles: ['tecnico'], title: 'Bandeja de incidentes' },
-  },
-  {
-    path: '/bandeja/:id',
-    name: 'bandeja-detalle',
-    component: placeholder,
-    meta: { roles: ['tecnico'], title: 'Detalle de ticket' },
-  },
-  {
-    path: '/general',
-    name: 'general',
-    component: placeholder,
-    meta: { roles: ['coordinador'], title: 'Bandeja general' },
-  },
-  {
-    path: '/general/:id',
-    name: 'general-detalle',
-    component: placeholder,
-    meta: { roles: ['coordinador'], title: 'Detalle de ticket' },
-  },
-  {
-    path: '/dashboard',
-    name: 'dashboard',
-    component: placeholder,
-    meta: { roles: ['coordinador'], title: 'Dashboard de carga de trabajo' },
-  },
-  {
-    path: '/modelo/:tab?',
-    name: 'modelo',
-    component: placeholder,
-    meta: { roles: ['coordinador'], title: 'Rendimiento del modelo' },
-  },
-  {
-    path: '/usuarios',
-    name: 'usuarios',
-    component: placeholder,
-    meta: { roles: ['coordinador'], title: 'Gestión de usuarios' },
-  },
-  {
-    path: '/monitoreo/:tab?',
-    name: 'monitoreo',
-    component: placeholder,
-    meta: { roles: ['auditor'], title: 'Monitoreo de base de datos' },
-  },
-  {
-    path: '/bitacora',
-    name: 'bitacora',
-    component: placeholder,
-    meta: { roles: ['auditor'], title: 'Bitácora de registros' },
-  },
-  {
-    path: '/historial/:id?',
-    name: 'historial',
-    component: placeholder,
-    meta: { roles: ['auditor'], title: 'Historial de ticket' },
+    path: '/',
+    component: () => import('@/layouts/AppLayout.vue'),
+    redirect: { name: 'login' },
+    children: [
+      {
+        path: 'registrar',
+        name: 'registrar',
+        component: placeholder,
+        meta: { roles: ['tecnico'], title: 'Registrar ticket' },
+      },
+      {
+        path: 'bandeja',
+        name: 'bandeja',
+        component: placeholder,
+        meta: { roles: ['tecnico'], title: 'Bandeja de incidentes' },
+      },
+      {
+        path: 'bandeja/:id',
+        name: 'bandeja-detalle',
+        component: placeholder,
+        meta: { roles: ['tecnico'], title: 'Detalle de ticket', parent: 'bandeja' },
+      },
+      {
+        path: 'general',
+        name: 'general',
+        component: placeholder,
+        meta: { roles: ['coordinador'], title: 'Bandeja general' },
+      },
+      {
+        path: 'general/:id',
+        name: 'general-detalle',
+        component: placeholder,
+        meta: { roles: ['coordinador'], title: 'Detalle de ticket', parent: 'general' },
+      },
+      {
+        path: 'dashboard',
+        name: 'dashboard',
+        component: placeholder,
+        meta: { roles: ['coordinador'], title: 'Dashboard de carga de trabajo' },
+      },
+      {
+        path: 'modelo/:tab?',
+        name: 'modelo',
+        component: placeholder,
+        meta: {
+          roles: ['coordinador'],
+          title: 'Rendimiento del modelo',
+          tabs: {
+            metricas: 'Métricas',
+            matriz: 'Matriz de confusión',
+            datos: 'Datos de entrenamiento',
+            modelo: 'Modelo',
+          },
+        },
+      },
+      {
+        path: 'usuarios',
+        name: 'usuarios',
+        component: placeholder,
+        meta: { roles: ['coordinador'], title: 'Gestión de usuarios' },
+      },
+      {
+        path: 'monitoreo/:tab?',
+        name: 'monitoreo',
+        component: placeholder,
+        meta: {
+          roles: ['auditor'],
+          title: 'Monitoreo de base de datos',
+          tabs: { estado: 'Estado general', tablas: 'Tablas', respaldos: 'Respaldos' },
+        },
+      },
+      {
+        path: 'bitacora',
+        name: 'bitacora',
+        component: placeholder,
+        meta: { roles: ['auditor'], title: 'Bitácora de registros' },
+      },
+      {
+        path: 'historial/:id?',
+        name: 'historial',
+        component: placeholder,
+        meta: { roles: ['auditor'], title: 'Historial de ticket' },
+      },
+    ],
   },
   ...(import.meta.env.DEV
     ? [
