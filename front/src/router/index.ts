@@ -1,23 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+import { useSessionStore } from '@/stores/session'
+
+import { resolveAccess } from './guards'
+import { routes } from './routes'
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    {
-      path: '/',
-      name: 'home',
-      component: () => import('@/views/HomeView.vue'),
-    },
-    ...(import.meta.env.DEV
-      ? [
-          {
-            path: '/dev/componentes',
-            name: 'dev-components',
-            component: () => import('@/views/dev/ComponentKitView.vue'),
-          },
-        ]
-      : []),
-  ],
+  routes,
 })
+
+router.beforeEach((to) => resolveAccess(to, useSessionStore().user))
 
 export default router
