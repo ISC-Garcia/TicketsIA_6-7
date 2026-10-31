@@ -15,10 +15,8 @@ import PriorityBadge from '@/components/ui/PriorityBadge.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import type { Priority, TicketStatus } from '@/types/ticket'
+import { PRIORITIES, TICKET_STATUSES } from '@/types/ticket'
 
-const PRIORITIES: Priority[] = ['Crítica', 'Alta', 'Media', 'Baja']
-const STATUSES: TicketStatus[] = ['Abierto', 'En atención', 'Resuelto']
 const TABS = [
   { key: 'resumen', label: 'Resumen' },
   { key: 'analisis', label: 'Análisis IA' },
@@ -63,7 +61,7 @@ const description = ref('')
         <PriorityBadge priority="Media" size="xl" />
       </div>
       <div class="kit__row">
-        <StatusBadge v-for="item in STATUSES" :key="item" :status="item" />
+        <StatusBadge v-for="item in TICKET_STATUSES" :key="item" :status="item" />
         <StatusBadge status="Abierto" size="md" />
       </div>
       <div class="kit__row">
