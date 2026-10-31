@@ -8,6 +8,15 @@ const router = createRouter({
       name: 'home',
       component: () => import('@/views/HomeView.vue'),
     },
+    ...(import.meta.env.DEV
+      ? [
+          {
+            path: '/dev/componentes',
+            name: 'dev-components',
+            component: () => import('@/views/dev/ComponentKitView.vue'),
+          },
+        ]
+      : []),
   ],
 })
 
