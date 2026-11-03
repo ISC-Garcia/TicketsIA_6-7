@@ -68,7 +68,7 @@ const { container, onKeydown } = useRovingSelection(
         <span class="priority-filter__dot" :style="{ background: option.dot }" />
         {{ option.label }}
       </span>
-      <span class="priority-filter__count">{{ option.count }}</span>
+      <span class="priority-filter__count">{{ option.count.toLocaleString('es-MX') }}</span>
     </button>
   </div>
 </template>

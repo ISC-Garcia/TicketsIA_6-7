@@ -25,6 +25,20 @@ describe('SlaCell', () => {
 describe('PriorityFilter', () => {
   const counts = { Crítica: 2, Alta: 3, Media: 0, Baja: 1 }
 
+  it('separa los miles en los conteos', () => {
+    const big = { Crítica: 15562, Alta: 20261, Media: 33947, Baja: 29230 }
+    const wrapper = mount(PriorityFilter, { props: { modelValue: '', counts: big } })
+
+    expect(wrapper.findAll('.priority-filter__count').map((count) => count.text())).toEqual([
+      '99,000',
+      '15,562',
+      '20,261',
+      '33,947',
+      '29,230',
+    ])
+    expect(wrapper.find('[role="radio"]').attributes('aria-label')).toBe('Todos, 99,000 tickets')
+  })
+
   it('nombra Todos con el total y cada prioridad con su conteo', () => {
     const wrapper = mount(PriorityFilter, { props: { modelValue: '', counts } })
 
