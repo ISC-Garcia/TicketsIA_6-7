@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends, Request
+from typing import Any
 
-from app.auth import current_user
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+
+from app.auth import current_user, require_roles
 from app.ml.model import ModelState
 from app.schemas import ApiModel
 
@@ -29,3 +31,15 @@ def model_info(request: Request) -> ModelInfo:
         accuracy=metrics.get("accuracy"),
         clean_records=metrics.get("cleaning", {}).get("cleanRecords"),
     )
+
+
+@router.get("/metrics", dependencies=[Depends(require_roles("coordinador"))])
+def model_metrics(request: Request) -> dict[str, Any]:
+    """El contenido de `metricas.json` del modelo que está cargado (B-9)."""
+    model: ModelState = request.app.state.model
+    if not model.loaded:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=model.error or "El modelo de clasificación no está disponible.",
+        )
+    return model.metrics

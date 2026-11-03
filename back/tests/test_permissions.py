@@ -27,6 +27,7 @@ PERMISSIONS: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("GET", "/api/auth/me"): ANY_ROLE,
     ("POST", "/api/auth/password"): ANY_ROLE,
     ("GET", "/api/model/info"): ANY_ROLE,
+    ("GET", "/api/model/metrics"): ("coordinador",),
     ("GET", "/api/tickets"): ("tecnico", "coordinador"),
     ("POST", "/api/tickets"): ("tecnico",),
     ("POST", "/api/tickets/analyze"): ("tecnico",),
