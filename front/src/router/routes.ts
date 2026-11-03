@@ -2,7 +2,12 @@ import type { RouteRecordRaw } from 'vue-router'
 
 import type { Role } from '@/types/user'
 import { DASHBOARD_PERIODS, type DashboardPeriod } from '@/types/dashboard'
-import { MONITOR_PERIODS, type MonitorPeriod } from '@/types/database'
+import {
+  MONITOR_PERIODS,
+  MONITOR_TABS,
+  type MonitorPeriod,
+  type MonitorTab,
+} from '@/types/database'
 import { MODEL_TABS, type ModelTab } from '@/types/model'
 import { parseEventFilters } from '@/utils/eventFilters'
 import { parseTicketFilters } from '@/utils/ticketFilters'
@@ -23,6 +28,9 @@ const parseDashboardPeriod = (value: unknown): DashboardPeriod =>
 
 const parseMonitorPeriod = (value: unknown): MonitorPeriod =>
   MONITOR_PERIODS.find((period) => period === value) ?? '24h'
+
+const parseMonitorTab = (value: unknown): MonitorTab =>
+  MONITOR_TABS.find((tab) => tab === value) ?? 'estado'
 
 // Igual con la pestaña del modelo: una desconocida abre Métricas, como dice el breadcrumb.
 const parseModelTab = (value: unknown): ModelTab =>
@@ -118,9 +126,15 @@ export const routes: RouteRecordRaw[] = [
         path: 'monitoreo/:tab?',
         name: 'monitoreo',
         component: () => import('@/views/MonitoringView.vue'),
-        props: (route) => ({ period: parseMonitorPeriod(route.query.periodo) }),
-        // Tablas y Respaldos llegan con E9-04.
-        meta: { roles: ['auditor'], title: 'Monitoreo de base de datos' },
+        props: (route) => ({
+          tab: parseMonitorTab(route.params.tab),
+          period: parseMonitorPeriod(route.query.periodo),
+        }),
+        meta: {
+          roles: ['auditor'],
+          title: 'Monitoreo de base de datos',
+          tabs: { estado: 'Estado general', tablas: 'Tablas', respaldos: 'Respaldos' },
+        },
       },
       {
         path: 'bitacora',

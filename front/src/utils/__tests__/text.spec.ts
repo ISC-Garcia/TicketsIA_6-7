@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   formatBytes,
+  formatDuration,
   formatLongDate,
   formatMinutes,
   formatTicketCount,
@@ -76,5 +77,15 @@ describe('formatBytes', () => {
     [3 * 1024 ** 5, '3,072 TB'],
   ])('%s bytes se leen como %s', (bytes, expected) => {
     expect(formatBytes(bytes)).toBe(expected)
+  })
+})
+
+describe('formatDuration', () => {
+  it.each([
+    [0.97, '1.0 s'],
+    [12.34, '12.3 s'],
+    [134, '2 min 14 s'],
+  ])('%s s se leen como %s', (seconds, expected) => {
+    expect(formatDuration(seconds)).toBe(expected)
   })
 })

@@ -25,3 +25,5 @@ class Event(Base):
     changes: Mapped[list[dict[str, str]] | None] = mapped_column(JSONB)
     after_close: Mapped[bool] = mapped_column(default=False)
     solution: Mapped[str | None] = mapped_column(Text)
+    # SHA-256 del contenido, para detectar cambios hechos por fuera de la API (app/integrity.py).
+    content_sha256: Mapped[str | None] = mapped_column(String(64))

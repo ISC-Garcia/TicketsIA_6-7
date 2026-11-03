@@ -171,46 +171,42 @@ function openHistory(id: string) {
       @action="load"
     />
     <p v-else-if="firstLoad" class="log__state log__loading">Cargando eventos…</p>
-    <div
-      v-else
-      class="log__table"
-      role="table"
-      aria-label="Eventos"
-      :aria-busy="loading || undefined"
-    >
-      <div role="rowgroup">
-        <div role="row" class="log__row log__row--head">
-          <span role="columnheader">Fecha y hora</span>
-          <span role="columnheader">Usuario</span>
-          <span role="columnheader">Tipo de evento</span>
-          <span role="columnheader">Ticket</span>
-          <span role="columnheader">Detalle</span>
+    <div v-else class="log__table">
+      <div role="table" aria-label="Eventos" :aria-busy="loading || undefined">
+        <div role="rowgroup">
+          <div role="row" class="log__row log__row--head">
+            <span role="columnheader">Fecha y hora</span>
+            <span role="columnheader">Usuario</span>
+            <span role="columnheader">Tipo de evento</span>
+            <span role="columnheader">Ticket</span>
+            <span role="columnheader">Detalle</span>
+          </div>
         </div>
-      </div>
-      <div role="rowgroup">
-        <div
-          v-for="event in events"
-          :key="event.id"
-          role="row"
-          class="log__row"
-          :class="{
-            'log__row--after-close': event.afterClose,
-            'log__row--selected': selected?.id === event.id,
-          }"
-          @click="selected = event"
-        >
-          <span role="cell">
-            <button type="button" class="log__open">{{ event.time }}</button>
-          </span>
-          <span role="cell" class="log__truncate" :title="event.user">{{ event.user }}</span>
-          <span role="cell"
-            ><span class="log__type">{{ event.type }}</span></span
+        <div role="rowgroup">
+          <div
+            v-for="event in events"
+            :key="event.id"
+            role="row"
+            class="log__row"
+            :class="{
+              'log__row--after-close': event.afterClose,
+              'log__row--selected': selected?.id === event.id,
+            }"
+            @click="selected = event"
           >
-          <span role="cell" class="log__mono">{{ event.ticketId }}</span>
-          <span role="cell" class="log__detail">
-            <span v-if="event.afterClose" class="log__badge">Edición posterior al cierre</span>
-            <span class="log__truncate log__muted" :title="event.detail">{{ event.detail }}</span>
-          </span>
+            <span role="cell">
+              <button type="button" class="log__open">{{ event.time }}</button>
+            </span>
+            <span role="cell" class="log__truncate" :title="event.user">{{ event.user }}</span>
+            <span role="cell"
+              ><span class="log__type">{{ event.type }}</span></span
+            >
+            <span role="cell" class="log__mono">{{ event.ticketId }}</span>
+            <span role="cell" class="log__detail">
+              <span v-if="event.afterClose" class="log__badge">Edición posterior al cierre</span>
+              <span class="log__truncate log__muted" :title="event.detail">{{ event.detail }}</span>
+            </span>
+          </div>
         </div>
       </div>
       <EmptyState

@@ -4,9 +4,13 @@ from sqlalchemy.exc import DBAPIError
 from app.auth import require_roles
 from app.config import SettingsDep
 from app.db import DbDep
+from app.integrity import verify_backup, verify_table
+from app.models import Event, Ticket
 from app.schemas import ApiModel
 from app.services import monitoring as service
+from app.services.backups import recent_backups
 from app.services.monitoring import MonitorPeriod
+from app.services.tables import list_tables
 
 router = APIRouter(
     prefix="/api/database", tags=["monitoreo"], dependencies=[Depends(require_roles("auditor"))]
@@ -84,4 +88,109 @@ def database_status(
         cache_hit_ratio=current.cache_hit_ratio,
         trend=TrendOut.model_validate(service.series(db, period, now)),
         slow_queries=SlowQueriesOut(available=slow is not None, items=slow or []),
+    )
+
+
+class ColumnOut(ApiModel):
+    name: str
+    type: str
+    description: str | None = None
+
+
+class TableOut(ApiModel):
+    name: str
+    description: str | None = None
+    rows: int
+    size_bytes: int
+    # Fecha más reciente de sus datos; nula si la tabla está vacía.
+    modified_at: str | None = None
+    columns: list[ColumnOut]
+
+
+@router.get("/tables", response_model_exclude_none=True)
+def database_tables(db: DbDep, settings: SettingsDep) -> list[TableOut]:
+    return [
+        TableOut.model_validate(
+            table
+            | {
+                "modified_at": settings.local(table["modified_at"])
+                if table["modified_at"]
+                else None
+            }
+        )
+        for table in list_tables(db)
+    ]
+
+
+class BackupOut(ApiModel):
+    id: int
+    started_at: str
+    duration_seconds: float
+    status: str
+    file_name: str
+    size_bytes: int | None = None
+    sha256: str | None = None
+    detail: str | None = None
+    retry_of_id: int | None = None
+
+
+@router.get("/backups", response_model_exclude_none=True)
+def database_backups(db: DbDep, settings: SettingsDep) -> list[BackupOut]:
+    """Los respaldos de los últimos 7 días, del más reciente al más antiguo."""
+    return [
+        BackupOut(
+            id=backup.id,
+            started_at=settings.local(backup.started_at),
+            duration_seconds=backup.duration_seconds,
+            status=backup.status,
+            file_name=backup.file_name,
+            size_bytes=backup.size_bytes,
+            sha256=backup.sha256,
+            detail=backup.detail,
+            retry_of_id=backup.retry_of_id,
+        )
+        for backup in recent_backups(db, service.wall_clock(settings.zone))
+    ]
+
+
+class TableIntegrity(ApiModel):
+    name: str
+    verified: int
+    mismatched: int
+    # Hasta 20 IDs de registros alterados; `mismatched` es el total.
+    examples: list[str]
+
+
+class BackupIntegrity(ApiModel):
+    id: int
+    file_name: str
+    started_at: str
+    result: str
+
+
+class IntegrityReport(ApiModel):
+    checked_at: str
+    tables: list[TableIntegrity]
+    backups: list[BackupIntegrity]
+
+
+@router.get("/integrity")
+def database_integrity(db: DbDep, settings: SettingsDep) -> IntegrityReport:
+    """Recalcula la huella SHA-256 de tickets, eventos y respaldos exitosos (E9-05)."""
+    now = service.wall_clock(settings.zone)
+    successful = [backup for backup in recent_backups(db, now) if backup.status == "Exitoso"]
+    return IntegrityReport(
+        checked_at=settings.local(now),
+        tables=[
+            TableIntegrity.model_validate(verify_table(db, model)) for model in (Ticket, Event)
+        ],
+        backups=[
+            BackupIntegrity(
+                id=backup.id,
+                file_name=backup.file_name,
+                started_at=settings.local(backup.started_at),
+                result=verify_backup(backup, settings.backup_folder),
+            )
+            for backup in successful
+        ],
     )

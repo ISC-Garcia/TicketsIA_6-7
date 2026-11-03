@@ -63,8 +63,9 @@ def test_e9_01_el_ritmo_de_consultas_compara_contra_la_ultima_muestra(
 
     body = status(client, auditor)
 
-    # Unas 100 por minuto, más las pocas que hizo la propia prueba.
-    assert 100 <= body["queriesPerMinute"] < 130
+    # Unas 100 por minuto: un poco menos porque pasan milisegundos más de 2 minutos, y un poco
+    # más por las transacciones de la propia prueba.
+    assert 95 <= body["queriesPerMinute"] < 130
 
 
 def test_e9_01_la_gráfica_promedia_las_muestras_de_cada_hora(db: Session) -> None:

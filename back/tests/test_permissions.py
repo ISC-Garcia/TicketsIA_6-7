@@ -40,6 +40,9 @@ PERMISSIONS: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("GET", "/api/users"): ("coordinador",),
     ("GET", "/api/events"): ("auditor",),
     ("GET", "/api/database/status"): ("auditor",),
+    ("GET", "/api/database/tables"): ("auditor",),
+    ("GET", "/api/database/backups"): ("auditor",),
+    ("GET", "/api/database/integrity"): ("auditor",),
     ("POST", "/api/users"): ("coordinador",),
     ("PATCH", "/api/users/{username}"): ("coordinador",),
     ("GET", "/api/tickets/counts"): ("tecnico", "coordinador"),
@@ -48,6 +51,8 @@ PERMISSIONS: dict[tuple[str, str], str | tuple[str, ...]] = {
     # Solo existe con APP_ENV=test (ver test_testing.py).
     ("POST", "/api/test/reset"): PUBLIC,
     ("PATCH", "/api/test/users/{username}"): PUBLIC,
+    ("POST", "/api/test/tamper/{ticket_id}"): PUBLIC,
+    ("POST", "/api/test/backup"): PUBLIC,
 }
 
 

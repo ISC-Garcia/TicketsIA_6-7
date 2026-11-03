@@ -185,6 +185,8 @@ uv run alembic upgrade head
 | `CORS_ORIGINS` | Orígenes que pueden llamar a la API, en JSON |
 | `JWT_SECRET` | Clave que firma las sesiones, de al menos 32 caracteres. Obligatoria |
 | `SESSION_HOURS` | Horas que dura una sesión, 8 por omisión |
+| `BACKUP_DIR` | Carpeta de los respaldos de `pg_dump`. Por omisión, `back/datos/respaldos/` |
+| `PG_DUMP` | Comando de `pg_dump`, `pg_dump` por omisión. Debe ser de la misma versión que el servidor o más nueva |
 | `MONITOR_INTERVAL_MINUTES` | Cada cuántos minutos la API guarda una muestra de PostgreSQL para las gráficas del monitoreo, 5 por omisión. Con 0 no guarda |
 
 ### Datos y modelo
@@ -214,6 +216,18 @@ uv run python -m app.cli seed completo   # la demo más 98,999 tickets históric
 ```
 
 La semilla `completo` necesita `tickets_soporte_procesado.csv` en `back/datos/`. El CSV tiene 99,209 filas pero 99,000 IDs distintos, y `TCK-115796` ya viene en la demo, así que se cargan 98,999.
+
+### Respaldos
+
+```sh
+uv run python -m app.cli backup
+```
+
+Ejecuta `pg_dump` en formato custom, guarda el archivo en `BACKUP_DIR` y registra el resultado con su duración, su tamaño y su SHA-256. Si falla, lo reintenta una vez. El comando termina con error si el último intento falla. El auditor ve los respaldos de los últimos 7 días en Monitoreo > Respaldos.
+
+### Integridad de los datos
+
+Cada ticket y cada evento guarda la huella SHA-256 de su contenido (`content_sha256`). La calcula `app/integrity.py` en cada escritura de la API, y la migración `0008` la llenó en los registros existentes. En Monitoreo > Tablas, "Verificar integridad" recalcula las huellas de `tickets`, `events` y de los archivos de respaldo, y señala lo que se modificó por fuera de la API. No detecta registros borrados y no usa cadena de bloques.
 
 ### Desarrollo y pruebas
 
@@ -253,13 +267,31 @@ Las pruebas usan `TEST_DATABASE_URL`: borran esa base y la migran desde cero al 
 | `POST` | `/api/users` | Coordinador | Crea un usuario (`name`, `username` con `^[a-z0-9._]{3,}$`, `role`, `password` temporal de 8 caracteres o más) |
 | `PATCH` | `/api/users/{username}` | Coordinador | Activa o desactiva una cuenta (`active`); nadie se desactiva a sí mismo |
 | `GET` | `/api/database/status` | Auditor | Estado real de PostgreSQL: servidor, tiempo activo, conexiones, latencia, consultas por minuto, tamaño, aciertos de caché, gráficas por `period` (`24h`, `semana` o `mes`) y consultas lentas de `pg_stat_statements` |
+| `GET` | `/api/database/tables` | Auditor | Tablas con filas, tamaño, fecha de su dato más reciente y columnas, con las descripciones guardadas como `COMMENT ON` |
+| `GET` | `/api/database/backups` | Auditor | Respaldos de los últimos 7 días, exitosos y fallidos, con su SHA-256 y el reintento ligado al fallido |
+| `GET` | `/api/database/integrity` | Auditor | Recalcula la huella SHA-256 de `tickets`, `events` y de los respaldos exitosos, y devuelve cuántos verificó y cuáles no coinciden |
 | `GET` | `/api/events` | Auditor | Bitácora del más reciente al más antiguo, de 10 en 10. Filtra por `type`, `user`, `date` (`hoy` o `7`), `ticketId` exacto y `afterClose`. Trae además `afterCloseTotal` y los `users` que aparecen en ella |
 
 Las respuestas usan los nombres de campo de `front/src/types/` y las fechas en hora local de la mesa de ayuda (`TIMEZONE`), sin zona, como `2026-10-28 09:57`. Los tickets históricos no traen `technician` ni `analysis`.
 
 El token va en el encabezado `Authorization: Bearer <token>`. Sin token o con uno vencido la API responde 401; con un rol sin permiso, 403. Un usuario desactivado pierde la sesión en su siguiente petición. Un usuario nuevo entra con una contraseña temporal: hasta cambiarla, su token solo sirve para `/api/auth/password`, `/api/auth/me` y `/api/auth/logout`, y el resto responde 403. Los errores siempre llegan como `{ "detail": "..." }` en español, y los de validación agregan `errors` con el campo y el mensaje.
 
-Con `APP_ENV=test` existen además `POST /api/test/reset`, que recarga la semilla demo, y `PATCH /api/test/users/{username}`, que activa o desactiva una cuenta. Los usan las pruebas E2E.
+Con `APP_ENV=test` existen además estos endpoints, que solo usan las pruebas E2E:
+
+- `POST /api/test/reset` recarga la semilla demo y limpia los intentos de login fallidos.
+- `PATCH /api/test/users/{username}` activa o desactiva una cuenta.
+- `POST /api/test/backup` ejecuta un respaldo.
+- `POST /api/test/tamper/{id}` cambia un ticket directo en la base, para probar la integridad.
+
+### Seguridad
+
+- **Permisos:** cada endpoint declara qué roles lo usan, y `tests/test_permissions.py` falla si aparece uno sin declarar.
+- **Contraseñas:** se guardan con argon2. El login responde lo mismo para un usuario inexistente, uno desactivado o una contraseña incorrecta.
+- **Intentos de login:** tras 5 intentos fallidos en un minuto con el mismo usuario y desde el mismo cliente, el login responde 429 durante un minuto.
+- **Encabezados:** cada respuesta lleva `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` y una `Content-Security-Policy` que no permite cargar nada. La única excepción es `/docs`, que carga Swagger.
+- **CORS:** solo acepta los orígenes de `CORS_ORIGINS`, los métodos `GET`, `POST` y `PATCH`, y los encabezados `Authorization` y `Content-Type`.
+- **Errores:** un error inesperado responde 500 con un mensaje en español y nunca con la traza.
+- **Dependencias** (revisadas el 2026-11-03): `pip-audit` no encuentra vulnerabilidades. `npm audit --omit=dev` tampoco; las 19 moderadas que reporta `npm audit` completo están en herramientas de desarrollo.
 
 ## Integración continua
 
@@ -270,3 +302,35 @@ GitHub Actions corre en cada PR hacia `dev` y `main`:
 - **E2E:** Playwright en Chromium y Firefox contra la API y PostgreSQL. Si falla, el reporte queda como artefacto de la ejecución.
 
 El resumen de cada ejecución muestra la cobertura de los dos servicios.
+
+## Demo por rol
+
+Con la semilla completa cargada (`uv run python -m app.cli seed completo`), la API y el front en marcha. Todas las cuentas usan `demo2026`.
+
+1. **Técnico (`tecnico`):**
+   - En Registrar ticket, escribe una falla, por ejemplo un servidor caído con `KERNEL_PANIC`. Analízala, revisa "¿Por qué esta prioridad?" y confírmala.
+   - En la bandeja, atiende un ticket y márcalo como resuelto.
+   - Como `sxala`, corrige la resolución de `TCK-115796`.
+2. **Coordinador (`coordinador`):**
+   - En el Dashboard, cambia el periodo y revisa el tiempo contra SLA.
+   - En Bandeja general, reasigna un ticket.
+   - Recorre las cuatro pestañas de Rendimiento del modelo.
+   - En Gestión de usuarios, crea un técnico con contraseña temporal y entra con él para ver el cambio de contraseña.
+3. **Auditor (`auditor`):**
+   - En Monitoreo, revisa el estado de PostgreSQL y abre una tabla.
+   - Corre `uv run python -m app.cli backup` y míralo en Respaldos.
+   - Pulsa "Verificar integridad".
+   - En la Bitácora, filtra las ediciones posteriores al cierre y abre el historial de `TCK-115796`.
+
+## Requisitos y pruebas
+
+Cómo se cumple cada punto de la etapa 3 de `docs/ProyectoIA_Requrimientos.pdf`. Las etapas 1 y 2 (problemática, objetivos, diseño y justificación) están en `docs/Proyecto IA.docx`.
+
+| Requisito | Dónde se cumple | Qué lo prueba |
+| --- | --- | --- |
+| 1. Recibir información del usuario, archivos u otra fuente | Registrar ticket (área, persona y descripción) y el dataset de 102,000 registros para entrenar | `front/e2e/register.spec.ts`, `back/tests/test_register.py`, `back/tests/test_ml.py` |
+| 2. Procesarla con una técnica de IA identificable | Random Forest con TF-IDF para la prioridad; PNL para dispositivos, códigos de error, palabras clave, intención y sentimiento (`back/app/ml/`) | `back/tests/test_classify.py`, `back/tests/test_pnl.py` |
+| 3. Generar una predicción o clasificación | Prioridad, departamento sugerido y sentimiento de cada ticket nuevo | `front/e2e/register.spec.ts`, `back/tests/test_classify.py` |
+| 4. Presentar resultados comprensibles | Resultado del registro con "¿Por qué esta prioridad?", Dashboard y Rendimiento del modelo | `front/e2e/dashboard.spec.ts`, `front/e2e/model.spec.ts` |
+| 5. Ejecutar distintos casos de prueba | "Cargar descripción de ejemplo" al registrar, las cuatro cuentas demo y las suites automáticas | Las 314 pruebas del back, 506 del front y 120 E2E |
+| 6. Manejar entradas erróneas o imprevistas | Validaciones con mensajes en español, modelo ausente (503), sin conexión, ID de ticket mal escrito, sesión vencida e intentos de login repetidos | `front/e2e/register.spec.ts`, `front/e2e/access.spec.ts`, `front/e2e/audit.spec.ts`, `back/tests/test_errors.py`, `back/tests/test_security.py` |

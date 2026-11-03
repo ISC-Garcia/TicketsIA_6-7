@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
@@ -47,5 +47,45 @@ describe('AppToast', () => {
 
     expect(toast.current).toBeNull()
     expect(wrapper.find('.toast').exists()).toBe(false)
+  })
+
+  describe('sobre los diálogos', () => {
+    let open = false
+    const showPopover = vi.fn<() => void>(() => {
+      open = true
+    })
+    const hidePopover = vi.fn<() => void>(() => {
+      open = false
+    })
+
+    beforeEach(() => {
+      open = false
+      Object.assign(HTMLElement.prototype, { showPopover, hidePopover })
+      vi.spyOn(HTMLElement.prototype, 'matches').mockImplementation(function (
+        this: HTMLElement,
+        selector: string,
+      ) {
+        return selector === ':popover-open' && open
+      })
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+      showPopover.mockClear()
+      hidePopover.mockClear()
+      delete (HTMLElement.prototype as Partial<HTMLElement>).showPopover
+      delete (HTMLElement.prototype as Partial<HTMLElement>).hidePopover
+    })
+
+    it('E10-01: cada aviso vuelve a subir la región a la capa superior', async () => {
+      const wrapper = mount(AppToast)
+      expect(showPopover).toHaveBeenCalledTimes(1)
+
+      useToastStore().show('Usuario creado')
+      await wrapper.vm.$nextTick()
+
+      expect(hidePopover).toHaveBeenCalledTimes(1)
+      expect(showPopover).toHaveBeenCalledTimes(2)
+    })
   })
 })

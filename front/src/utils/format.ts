@@ -53,3 +53,10 @@ export function formatBytes(bytes: number): string {
   const decimals = value < 10 && unit > 0 ? 1 : 0
   return `${value.toLocaleString('es-MX', { maximumFractionDigits: decimals })} ${BYTE_UNITS[unit]}`
 }
+
+// "0.9 s" o "2 min 14 s": cuánto tardó un respaldo.
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds.toFixed(1)} s`
+  const whole = Math.round(seconds)
+  return `${Math.floor(whole / 60)} min ${whole % 60} s`
+}

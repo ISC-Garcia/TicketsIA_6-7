@@ -34,6 +34,20 @@ test.describe('E1-04: acceso', () => {
     await expect(page).toHaveURL(/\/dashboard$/)
   })
 
+  test('E10-02: tras 5 intentos fallidos el login se bloquea un minuto', async ({ page }) => {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await signIn(page, 'tecnico', 'incorrecta')
+      await expect(page.getByRole('alert')).toHaveText('Usuario o contraseña incorrectos.')
+    }
+
+    await signIn(page, 'tecnico', 'demo2026')
+
+    await expect(page.getByRole('alert')).toHaveText(
+      'Demasiados intentos fallidos. Espera un minuto antes de volver a intentar.',
+    )
+    await expect(page).toHaveURL(/\/login$/)
+  })
+
   test('una contraseña incorrecta muestra el error', async ({ page }) => {
     await signIn(page, 'tecnico', 'incorrecta')
 
