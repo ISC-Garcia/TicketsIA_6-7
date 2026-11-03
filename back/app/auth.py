@@ -1,5 +1,6 @@
 """Dependencias de sesión y permisos para los routers."""
 
+from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -13,6 +14,7 @@ from app.security import read_token
 
 SESSION_REQUIRED = "Inicia sesión para continuar."
 SESSION_EXPIRED = "Tu sesión terminó. Vuelve a iniciar sesión."
+FORBIDDEN = "Tu rol no tiene permiso para esta acción."
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -40,3 +42,12 @@ def current_user(
 
 
 CurrentUser = Annotated[User, Depends(current_user)]
+
+
+def require_roles(*roles: str) -> Callable[[User], User]:
+    def check(user: CurrentUser) -> User:
+        if user.role not in roles:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail=FORBIDDEN)
+        return user
+
+    return check
