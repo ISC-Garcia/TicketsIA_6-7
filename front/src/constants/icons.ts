@@ -16,4 +16,5 @@ export const ICONS = {
   logout: 'M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10',
   collapse: 'M4 5h16v14H4zM9.5 5v14M15.5 10l-2 2 2 2',
   expand: 'M4 5h16v14H4zM9.5 5v14M13.5 10l2 2-2 2',
+  close: 'M6 6l12 12M18 6L6 18',
 }
