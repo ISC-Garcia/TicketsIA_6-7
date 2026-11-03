@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
@@ -57,6 +57,25 @@ describe('RowActions', () => {
 
     expect(wrapper.emitted('reassign')).toHaveLength(1)
     expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('los clics del menú no llegan a la fila', async () => {
+    const rowClick = vi.fn<() => void>()
+    const wrapper = mount(
+      {
+        components: { RowActions },
+        template: '<div @click="rowClick"><RowActions ticket-id="TCK-1" /></div>',
+        methods: { rowClick },
+      },
+      { attachTo: document.body },
+    )
+
+    await wrapper.find('button').trigger('click')
+    await nextTick()
+    await wrapper.find('[role="menuitem"]').trigger('click')
+
+    expect(rowClick).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })

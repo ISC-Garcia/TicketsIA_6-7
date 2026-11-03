@@ -44,7 +44,9 @@ function reassign() {
 </script>
 
 <template>
-  <div ref="root" class="actions" @keydown.escape.stop="close(true)">
+  <!-- El clic no llega a la fila: al cerrar el menú, el elemento sale del DOM antes de que la
+       fila revise de dónde vino el clic, y abriría el detalle. -->
+  <div ref="root" class="actions" @click.stop @keydown.escape.stop="close(true)">
     <button
       ref="trigger"
       type="button"
