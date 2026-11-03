@@ -107,7 +107,8 @@ def test_e9_01_las_consultas_lentas_salen_de_pg_stat_statements(
         monitoring,
         "SLOW_QUERIES",
         text(
-            "SELECT 'SELECT *\n  FROM tickets' AS query, 7 AS calls, 12.345::float8 AS mean_exec_time"
+            "SELECT 'SELECT *\n  FROM tickets' AS query, 7 AS calls,"
+            " 12.345::float8 AS mean_exec_time"
         ),
     )
 
