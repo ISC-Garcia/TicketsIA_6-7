@@ -8,7 +8,9 @@ from typing import Any
 import joblib
 from sklearn.exceptions import InconsistentVersionWarning
 
-from app.ml.train import METRICS_FILE
+from app.ml.train import DEPARTMENT, METRICS_FILE, PRIORITY, SENTIMENT
+
+MODEL_KEYS = {PRIORITY, DEPARTMENT, SENTIMENT}
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,8 @@ logger = logging.getLogger(__name__)
 class ModelState:
     """El modelo cargado al arrancar, o el motivo por el que no se pudo cargar."""
 
-    pipeline: Any = None
+    # Los tres clasificadores: prioridad, departamento y sentimiento.
+    pipeline: dict[str, Any] | None = None
     metrics: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
 
@@ -50,4 +53,10 @@ def load_model(path: Path) -> ModelState:
             logger.exception("No se pudo cargar el modelo de %s", path)
             return ModelState(metrics=metrics, error=f"No se pudo leer el modelo: {error}")
 
+    # El modelo anterior era un solo Pipeline; el actual guarda los tres clasificadores.
+    if not isinstance(pipeline, dict) or set(pipeline) != MODEL_KEYS:
+        return ModelState(
+            metrics=metrics,
+            error="El modelo tiene un formato anterior. Vuelve a entrenarlo.",
+        )
     return ModelState(pipeline=pipeline, metrics=metrics)

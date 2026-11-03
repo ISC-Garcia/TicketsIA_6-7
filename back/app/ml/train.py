@@ -20,6 +20,7 @@ import sklearn
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
@@ -43,6 +44,10 @@ CATEGORY_FEATURES = [
     "sentimiento",
 ]
 TARGET = "prioridad"
+# Claves del archivo del modelo: un clasificador por cada dato que se infiere.
+PRIORITY = "prioridad"
+DEPARTMENT = "departamento"
+SENTIMENT = "sentimiento"
 N_ESTIMATORS = 100
 TFIDF_MAX_FEATURES = 1000
 
@@ -60,12 +65,36 @@ def build_pipeline(seed: int) -> Pipeline:
     return Pipeline(steps=[("preprocesamiento", features), ("clasificador", classifier)])
 
 
+def build_text_classifier(seed: int) -> Pipeline:
+    """Departamento o sentimiento a partir de la descripción: al registrar un ticket no se
+    conocen, así que el modelo de prioridad recibe estas predicciones (B-3)."""
+    return Pipeline(
+        steps=[
+            ("texto", TfidfVectorizer(max_features=TFIDF_MAX_FEATURES)),
+            ("clasificador", LogisticRegression(max_iter=1000, random_state=seed)),
+        ]
+    )
+
+
+def with_predicted_context(x: pd.DataFrame, bundle: dict[str, Pipeline]) -> pd.DataFrame:
+    """Reemplaza el departamento y el sentimiento del dataset por los que predice el texto."""
+    text = x[TEXT_FEATURE]
+    return x.assign(
+        departamento_asignado=bundle[DEPARTMENT].predict(text),
+        sentimiento=bundle[SENTIMENT].predict(text),
+    )
+
+
 def percent(value: float) -> float:
     return round(float(value) * 100, 2)
 
 
-def train(df: pd.DataFrame, seed: int = SEED) -> tuple[Pipeline, dict[str, Any]]:
-    """Divide 70/15/15, entrena y evalúa con el 15 % de prueba."""
+def train(df: pd.DataFrame, seed: int = SEED) -> tuple[dict[str, Pipeline], dict[str, Any]]:
+    """Divide 70/15/15, entrena los tres clasificadores y evalúa con el 15 % de prueba.
+
+    La exactitud se mide como se usará el modelo: con el departamento y el sentimiento
+    predichos desde el texto, no con los del dataset.
+    """
     x = df[[TEXT_FEATURE, *CATEGORY_FEATURES]]
     y = df[TARGET]
     x_train, x_rest, y_train, y_rest = train_test_split(
@@ -75,15 +104,33 @@ def train(df: pd.DataFrame, seed: int = SEED) -> tuple[Pipeline, dict[str, Any]]
         x_rest, y_rest, test_size=0.50, random_state=seed, stratify=y_rest
     )
 
-    pipeline = build_pipeline(seed).fit(x_train, y_train)
-    predicted = pipeline.predict(x_test)
+    bundle = {
+        PRIORITY: build_pipeline(seed).fit(x_train, y_train),
+        DEPARTMENT: build_text_classifier(seed).fit(
+            x_train[TEXT_FEATURE], x_train["departamento_asignado"]
+        ),
+        SENTIMENT: build_text_classifier(seed).fit(x_train[TEXT_FEATURE], x_train["sentimiento"]),
+    }
+    priority = bundle[PRIORITY]
+    test = with_predicted_context(x_test, bundle)
+    predicted = priority.predict(test)
     precision, recall, f1, support = precision_recall_fscore_support(
         y_test, predicted, labels=list(PRIORITIES), zero_division=0
     )
 
     metrics = {
         "accuracy": percent(accuracy_score(y_test, predicted)),
-        "validationAccuracy": percent(accuracy_score(y_val, pipeline.predict(x_val))),
+        "validationAccuracy": percent(
+            accuracy_score(y_val, priority.predict(with_predicted_context(x_val, bundle)))
+        ),
+        # Referencia: la exactitud si se conocieran el departamento y el sentimiento reales.
+        "accuracyWithDatasetContext": percent(accuracy_score(y_test, priority.predict(x_test))),
+        "context": {
+            "department": percent(
+                accuracy_score(x_test["departamento_asignado"], test["departamento_asignado"])
+            ),
+            "sentiment": percent(accuracy_score(x_test["sentimiento"], test["sentimiento"])),
+        },
         "classes": [
             {
                 "priority": priority,
@@ -108,10 +155,11 @@ def train(df: pd.DataFrame, seed: int = SEED) -> tuple[Pipeline, dict[str, Any]]
             "textFeature": TEXT_FEATURE,
             "categoryFeatures": CATEGORY_FEATURES,
             "target": TARGET,
+            "contextModel": "TF-IDF y regresión logística sobre la descripción",
             "seed": seed,
         },
     }
-    return pipeline, metrics
+    return bundle, metrics
 
 
 def sha256(path: Path) -> str:
@@ -131,10 +179,10 @@ def run(folder: Path, records: int = RECORDS, seed: int = SEED) -> dict[str, Any
     generate(records, seed).to_csv(folder / RAW_FILE, index=False, encoding="utf-8")
     cleaned, cleaning = clean(pd.read_csv(folder / RAW_FILE))
     cleaned.to_csv(folder / CLEAN_FILE, index=False, encoding="utf-8")
-    pipeline, metrics = train(pd.read_csv(folder / CLEAN_FILE), seed)
+    bundle, metrics = train(pd.read_csv(folder / CLEAN_FILE), seed)
 
     model_path = folder / MODEL_FILE
-    joblib.dump(pipeline, model_path, compress=3)
+    joblib.dump(bundle, model_path, compress=3)
     metrics |= {
         "trainedAt": datetime.now(UTC).isoformat(timespec="seconds"),
         "sklearnVersion": sklearn.__version__,

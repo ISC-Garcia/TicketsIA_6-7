@@ -15,3 +15,7 @@ export const toDateKey = (date: Date) =>
     String(date.getMonth() + 1).padStart(2, '0'),
     String(date.getDate()).padStart(2, '0'),
   ].join('-')
+
+// "2026-10-28 11:42", el formato en que la API y las vistas muestran las fechas.
+export const formatDateTime = (date: Date) =>
+  `${toDateKey(date)} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`

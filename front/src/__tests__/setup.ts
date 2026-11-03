@@ -2,7 +2,7 @@
 
 import { afterAll, afterEach, beforeAll } from 'vitest'
 
-import { setMockFailure } from '@/mocks/handlers'
+import { resetMockData, setMockFailure } from '@/mocks/handlers'
 import { server } from '@/mocks/server'
 
 // Node define su propio localStorage, inutilizable sin --localstorage-file, que tapa al de jsdom.
@@ -26,5 +26,6 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   setMockFailure(false)
+  resetMockData()
 })
 afterAll(() => server.close())

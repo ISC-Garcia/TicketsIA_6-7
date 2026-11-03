@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Event, Ticket, User
 from app.security import hash_password
-from app.seeds import clear, local_time
+from app.seeds import clear, local_time, sync_ticket_numbers
 
 DATA_FILE = Path(__file__).with_name("demo.json")
 # Contraseña de las cuentas de demostración, la misma que muestran los accesos demo del login.
@@ -47,6 +47,7 @@ def seed_demo(session: Session, zone: ZoneInfo) -> None:
     # Se insertan en orden cronológico para que el ID crezca con el tiempo.
     events = sorted(data["events"], key=lambda item: local_time(item["time"], zone))
     session.add_all(event_from(item, zone) for item in events)
+    sync_ticket_numbers(session)
     session.commit()
 
 

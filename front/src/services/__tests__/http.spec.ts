@@ -88,6 +88,27 @@ describe('request', () => {
     expect(error.status).toBe(404)
   })
 
+  it('conserva los errores de validación por campo', async () => {
+    server.use(
+      http.post('*/api/eco', () =>
+        HttpResponse.json(
+          {
+            detail: 'Revisa los datos enviados.',
+            errors: [{ field: 'description', message: 'Debe tener al menos 20 caracteres.' }],
+          },
+          { status: 422 },
+        ),
+      ),
+    )
+
+    const error = (await request('/api/eco', { method: 'POST' }).catch(
+      (caught) => caught,
+    )) as ServiceError
+
+    expect(error.status).toBe(422)
+    expect(error.fields).toEqual({ description: 'Debe tener al menos 20 caracteres.' })
+  })
+
   it('usa un mensaje genérico si el error JSON no trae detalle', async () => {
     server.use(http.get('*/api/eco', () => HttpResponse.json({ otro: 1 }, { status: 500 })))
 

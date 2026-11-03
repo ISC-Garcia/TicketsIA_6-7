@@ -37,7 +37,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'registrar',
         name: 'registrar',
-        component: placeholder,
+        component: () => import('@/views/RegisterView.vue'),
         meta: { roles: ['tecnico'], title: 'Registrar ticket' },
       },
       {

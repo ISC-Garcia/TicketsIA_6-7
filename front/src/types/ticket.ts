@@ -57,6 +57,25 @@ export interface Ticket {
   editedAfterClose?: boolean
 }
 
+// Lo que captura el técnico al registrar.
+export interface TicketDraft {
+  area: Area
+  reporter: string
+  description: string
+  device?: string
+}
+
+// Resultado de analizar una captura, antes de guardarla.
+export interface DraftAnalysis {
+  priority: Priority
+  department: Department
+  device: string
+  // El dispositivo no se escribió y se tomó de la descripción.
+  deviceDetected: boolean
+  highlights: string[]
+  analysis: Analysis
+}
+
 export const TICKET_DATE_FILTERS = ['hoy', '48', '7'] as const
 export type TicketDateFilter = (typeof TICKET_DATE_FILTERS)[number]
 

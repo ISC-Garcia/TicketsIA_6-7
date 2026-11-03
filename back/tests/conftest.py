@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import BACK_DIR, Settings
 from app.db import get_engine
 from app.main import create_app
-from app.ml.train import run
+from app.ml.train import MODEL_FILE, run
 from app.seeds import clear
 from app.seeds.demo import DEMO_PASSWORD, seed_demo
 
@@ -91,3 +91,11 @@ def auth_headers(
     response = client.post("/api/auth/login", json={"username": username, "password": password})
     assert response.status_code == 200, response.text
     return {"Authorization": f"Bearer {response.json()['token']}"}
+
+
+@pytest.fixture
+def model_client(settings: Settings, trained: Path) -> Iterator[TestClient]:
+    """API con el modelo pequeño de las pruebas cargado."""
+    with_model = settings.model_copy(update={"model_path": trained / MODEL_FILE})
+    with TestClient(create_app(with_model)) as test_client:
+        yield test_client

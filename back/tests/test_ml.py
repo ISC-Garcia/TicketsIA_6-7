@@ -81,7 +81,29 @@ def test_e0_04_entrenar_dos_veces_con_la_semilla_da_el_mismo_modelo(
     sample = pd.read_csv(trained / CLEAN_FILE).head(200)
     original = joblib.load(trained / MODEL_FILE)
     repeated = joblib.load(tmp_path / MODEL_FILE)
-    assert list(original.predict(sample)) == list(repeated.predict(sample))
+    for key in ("prioridad", "departamento", "sentimiento"):
+        features = sample if key == "prioridad" else sample["descripcion_problema"]
+        assert list(original[key].predict(features)) == list(repeated[key].predict(features))
+
+
+def test_e3_02_mide_la_exactitud_con_el_contexto_predicho(trained: Path) -> None:
+    metrics = json.loads((trained / METRICS_FILE).read_text(encoding="utf-8"))
+
+    assert 0 <= metrics["accuracy"] <= 100
+    assert 0 <= metrics["accuracyWithDatasetContext"] <= 100
+    assert set(metrics["context"]) == {"department", "sentiment"}
+    assert all(0 <= value <= 100 for value in metrics["context"].values())
+    assert set(joblib.load(trained / MODEL_FILE)) == {"prioridad", "departamento", "sentimiento"}
+
+
+def test_e3_02_rechaza_un_modelo_con_el_formato_anterior(tmp_path: Path, trained: Path) -> None:
+    old = tmp_path / MODEL_FILE
+    joblib.dump(joblib.load(trained / MODEL_FILE)["prioridad"], old)
+
+    state = load_model(old)
+
+    assert state.loaded is False
+    assert state.error == "El modelo tiene un formato anterior. Vuelve a entrenarlo."
 
 
 def test_e0_04_el_comando_entrena_en_la_carpeta_indicada(

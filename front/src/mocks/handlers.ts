@@ -3,7 +3,7 @@ import { delay, http, HttpResponse } from 'msw'
 import type { AuditEvent, EventDateFilter, EventType } from '@/types/event'
 import type { Page } from '@/types/page'
 import { DEPARTMENTS, PRIORITIES, TICKET_DATE_FILTERS, TICKET_STATUSES } from '@/types/ticket'
-import type { Ticket, TicketDateFilter } from '@/types/ticket'
+import type { DraftAnalysis, Ticket, TicketDateFilter, TicketDraft } from '@/types/ticket'
 import { minutesSince, now, toDateKey } from '@/utils/clock'
 
 import { backups, tables } from './database'
@@ -74,6 +74,62 @@ function matchesEventDate(event: AuditEvent, date?: EventDateFilter) {
   return event.time >= toDateKey(today)
 }
 
+// Clasificación simulada: reglas sencillas sobre el texto. La real la hace el modelo en la API.
+const SIMULATED_DEVICES = ['Cluster K8s', 'Servidor Ubuntu', 'Storage SAN', 'Impresora de Red']
+const ERROR_CODE = /\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g
+
+export function simulateAnalysis(draft: TicketDraft): DraftAnalysis {
+  const critical = /caída|fuera de servicio|deadlock|detiene/i.test(draft.description)
+  const devices = SIMULATED_DEVICES.filter((device) =>
+    draft.description.toLowerCase().includes(device.toLowerCase()),
+  )
+  const errorCodes = [...new Set(draft.description.match(ERROR_CODE) ?? [])]
+  const typed = draft.device?.trim()
+  return {
+    priority: critical ? 'Crítica' : 'Media',
+    department: critical ? 'Infraestructura Cloud' : 'Soporte de Aplicaciones',
+    device: typed || devices[0] || 'Sin Especificar',
+    deviceDetected: !typed && devices.length > 0,
+    highlights: [...devices, ...errorCodes],
+    analysis: {
+      confidence: critical ? 88 : 64,
+      probabilities: critical
+        ? { Crítica: 88, Alta: 9, Media: 2, Baja: 1 }
+        : { Crítica: 4, Alta: 20, Media: 64, Baja: 12 },
+      sentiment: critical ? 'Negativo' : 'Neutral',
+      intent: 'Reporte de incidente',
+      keywords:
+        draft.description
+          .toLowerCase()
+          .match(/[a-záéíóúñ]{6,}/g)
+          ?.slice(0, 6) ?? [],
+      devices,
+      errorCodes,
+    },
+  }
+}
+
+function draftErrors(draft: TicketDraft) {
+  const errors = []
+  if (!draft.reporter?.trim())
+    errors.push({ field: 'reporter', message: 'Este campo es obligatorio.' })
+  const length = draft.description?.trim().length ?? 0
+  if (length < 20) {
+    errors.push({ field: 'description', message: 'Debe tener al menos 20 caracteres.' })
+  }
+  return errors
+}
+
+const FIRST_NEW_TICKET = 200030
+let nextTicketNumber = FIRST_NEW_TICKET
+
+// Quita los tickets que se registraron, para que cada prueba empiece con la demo intacta.
+export function resetMockData() {
+  const created = tickets.findIndex((ticket) => Number(ticket.id.slice(4)) >= FIRST_NEW_TICKET)
+  if (created >= 0) tickets.splice(created)
+  nextTicketNumber = FIRST_NEW_TICKET
+}
+
 async function respond<T>(body: () => T) {
   if (failing) return HttpResponse.error()
   await delay(LATENCY_MS)
@@ -109,6 +165,41 @@ export const handlers = [
   http.post('*/api/auth/logout', () =>
     failing ? HttpResponse.error() : new HttpResponse(null, { status: 204 }),
   ),
+
+  http.post('*/api/tickets/analyze', async ({ request }) => {
+    if (failing) return HttpResponse.error()
+    await delay(LATENCY_MS)
+    const draft = (await request.json()) as TicketDraft
+    const errors = draftErrors(draft)
+    if (errors.length) {
+      return HttpResponse.json({ detail: 'Revisa los datos enviados.', errors }, { status: 422 })
+    }
+    return HttpResponse.json(simulateAnalysis(draft))
+  }),
+
+  http.post('*/api/tickets', async ({ request }) => {
+    if (failing) return HttpResponse.error()
+    await delay(LATENCY_MS)
+    const draft = (await request.json()) as TicketDraft
+    const result = simulateAnalysis(draft)
+    const ticket = {
+      id: `TCK-${nextTicketNumber++}`,
+      priority: result.priority,
+      area: draft.area,
+      device: result.device,
+      department: result.department,
+      status: 'Abierto',
+      createdAt: '2026-10-28 11:42',
+      reporter: draft.reporter.trim(),
+      technician: 'Roberto García Hernández',
+      summary: draft.description.slice(0, 60),
+      description: draft.description.trim(),
+      highlights: result.highlights,
+      analysis: result.analysis,
+    } satisfies Ticket
+    tickets.push(ticket)
+    return HttpResponse.json(ticket, { status: 201 })
+  }),
 
   // Los resueltos solo aparecen al pedirlos, como en la bandeja del prototipo.
   http.get('*/api/tickets', ({ request }) => {

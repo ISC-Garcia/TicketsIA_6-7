@@ -1,5 +1,5 @@
 import type { Page } from '@/types/page'
-import type { Priority, Ticket, TicketQuery } from '@/types/ticket'
+import type { DraftAnalysis, Priority, Ticket, TicketDraft, TicketQuery } from '@/types/ticket'
 
 import { request, ServiceError } from './http'
 
@@ -22,4 +22,14 @@ export async function getTicket(id: string): Promise<Ticket | null> {
     if (error instanceof ServiceError && error.status === NOT_FOUND) return null
     throw error
   }
+}
+
+// Clasifica la captura sin guardarla, para revisarla antes de confirmar.
+export function analyzeTicket(draft: TicketDraft): Promise<DraftAnalysis> {
+  return request('/api/tickets/analyze', { method: 'POST', body: draft })
+}
+
+// El servidor vuelve a clasificar al guardar: no se envía el análisis que se mostró.
+export function createTicket(draft: TicketDraft): Promise<Ticket> {
+  return request('/api/tickets', { method: 'POST', body: draft })
 }

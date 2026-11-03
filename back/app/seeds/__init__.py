@@ -22,3 +22,14 @@ def local_time(value: str, zone: ZoneInfo) -> datetime:
 def clear(session: Session) -> None:
     tables = ", ".join(table.name for table in Base.metadata.sorted_tables)
     session.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+
+
+def sync_ticket_numbers(session: Session) -> None:
+    """Deja la secuencia de IDs justo después del mayor ticket cargado."""
+    session.execute(
+        text(
+            "SELECT setval('ticket_number_seq', "
+            "GREATEST(200029, COALESCE(MAX(CAST(SUBSTRING(id FROM 5) AS INTEGER)), 0))) "
+            "FROM tickets"
+        )
+    )
