@@ -16,6 +16,7 @@ import { minutesSince, now, toDateKey } from '@/utils/clock'
 
 import { backups, tables } from './database'
 import { events } from './events'
+import { modelMetrics } from './model'
 import { tickets, type DemoTicket } from './tickets'
 import { users } from './users'
 
@@ -501,6 +502,8 @@ export const handlers = [
     const period = (new URL(request.url).searchParams.get('period') ?? 'mes') as DashboardPeriod
     return respond(() => simulatedDashboard(period))
   }),
+
+  http.get('*/api/model/metrics', () => respond(() => modelMetrics)),
 
   http.get('*/api/users', () => respond(() => users)),
 

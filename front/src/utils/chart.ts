@@ -19,6 +19,9 @@ export const gridValues = (max: number, parts: number) =>
 
 export const formatNumber = (value: number) => value.toLocaleString('es-MX')
 
+// "94.6 %", con un decimal como en el prototipo.
+export const formatPercent = (value: number, decimals = 1) => `${value.toFixed(decimals)} %`
+
 // Variación con signo, como en el prototipo: "+5", "−1.8 h", "+0.6 pts".
 export function formatDelta(value: number, unit = '', decimals = 0): string {
   const rounded = Number(value.toFixed(decimals))
