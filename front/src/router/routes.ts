@@ -3,6 +3,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import type { Role } from '@/types/user'
 import { DASHBOARD_PERIODS, type DashboardPeriod } from '@/types/dashboard'
 import { MODEL_TABS, type ModelTab } from '@/types/model'
+import { parseEventFilters } from '@/utils/eventFilters'
 import { parseTicketFilters } from '@/utils/ticketFilters'
 
 declare module 'vue-router' {
@@ -125,7 +126,8 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'bitacora',
         name: 'bitacora',
-        component: placeholder,
+        component: () => import('@/views/EventLogView.vue'),
+        props: (route) => ({ filters: parseEventFilters(route.query) }),
         meta: { roles: ['auditor'], title: 'Bitácora de registros' },
       },
       {

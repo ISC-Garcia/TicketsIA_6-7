@@ -1,7 +1,12 @@
 import { delay, http, HttpResponse } from 'msw'
 
 import type { Dashboard, DashboardPeriod, Trend } from '@/types/dashboard'
-import type { AuditEvent, EventDateFilter, EventType } from '@/types/event'
+import {
+  EVENT_DATE_FILTERS,
+  type AuditEvent,
+  type EventDateFilter,
+  type EventType,
+} from '@/types/event'
 import type { NewUser, User } from '@/types/user'
 import type { Page } from '@/types/page'
 import { DEPARTMENTS, PRIORITIES, TICKET_DATE_FILTERS, TICKET_STATUSES } from '@/types/ticket'
@@ -476,7 +481,7 @@ export const handlers = [
     const params = new URL(request.url).searchParams
     const type = params.get('type') as EventType | null
     const user = params.get('user')
-    const date = pick(params.get('date'), ['hoy', '7'] as const)
+    const date = pick(params.get('date'), EVENT_DATE_FILTERS)
     const ticketId = params.get('ticketId')?.trim().toUpperCase()
     const afterClose = params.get('afterClose') === 'true'
 
@@ -485,15 +490,20 @@ export const handlers = [
         .filter((event) => !type || event.type === type)
         .filter((event) => !user || event.user === user)
         .filter((event) => matchesEventDate(event, date))
-        .filter((event) => !ticketId || event.ticketId?.includes(ticketId))
+        // Como la API: el ID se busca exacto (B-13).
+        .filter((event) => !ticketId || event.ticketId === ticketId)
         .filter((event) => !afterClose || event.afterClose)
         .sort((a, b) => b.time.localeCompare(a.time))
 
-      return paginate(
-        items,
-        numberParam(params, 'page'),
-        numberParam(params, 'pageSize') ?? EVENTS_PER_PAGE,
-      )
+      return {
+        ...paginate(
+          items,
+          numberParam(params, 'page'),
+          numberParam(params, 'pageSize') ?? EVENTS_PER_PAGE,
+        ),
+        afterCloseTotal: events.filter((event) => event.afterClose).length,
+        users: [...new Set(events.map((event) => event.user))].sort(),
+      }
     })
   }),
 
