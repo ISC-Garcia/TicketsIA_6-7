@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import PriorityFilter from '@/components/tickets/PriorityFilter.vue'
+import ReassignModal from '@/components/tickets/ReassignModal.vue'
 import TicketTable from '@/components/tickets/TicketTable.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
@@ -11,14 +12,31 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import PaginationBar from '@/components/ui/PaginationBar.vue'
 import { ServiceError } from '@/services/http'
 import { countTicketsByPriority, listTickets } from '@/services/tickets'
+import { useToastStore } from '@/stores/toast'
 import { DEPARTMENTS, PRIORITIES, TICKET_STATUSES } from '@/types/ticket'
 import type { Priority, Ticket, TicketDateFilter } from '@/types/ticket'
 import { formatTicketCount } from '@/utils/format'
 import { hasTicketFilters, ticketFiltersToQuery, type TicketFilters } from '@/utils/ticketFilters'
 
-const props = defineProps<{
-  filters: TicketFilters
-}>()
+const props = withDefaults(
+  defineProps<{
+    filters: TicketFilters
+    // La misma bandeja sirve al técnico y, como bandeja general, al coordinador.
+    mode?: 'tecnico' | 'coordinador'
+  }>(),
+  { mode: 'tecnico' },
+)
+
+const HEADINGS = {
+  tecnico: {
+    title: 'Bandeja de incidentes',
+    subtitle: 'Ordenada por prioridad y antigüedad. Selecciona un ticket para atenderlo.',
+  },
+  coordinador: {
+    title: 'Bandeja general',
+    subtitle: 'Consulta de todos los tickets y reasignación de técnico.',
+  },
+}
 
 const DATE_OPTIONS: { value: TicketDateFilter; label: string }[] = [
   { value: 'hoy', label: 'Hoy' },
@@ -31,6 +49,15 @@ const DATE_OPTIONS: { value: TicketDateFilter; label: string }[] = [
 const PAGE_SIZE = 25
 
 const router = useRouter()
+const toast = useToastStore()
+const heading = computed(() => HEADINGS[props.mode])
+const reassigning = ref<Ticket | null>(null)
+
+function onAssigned(updated: Ticket) {
+  reassigning.value = null
+  toast.show('Técnico reasignado', `${updated.id}, ahora con ${updated.technician}`)
+  void load()
+}
 
 const tickets = ref<Ticket[]>([])
 const total = ref(0)
@@ -122,10 +149,8 @@ const rowCount = computed(() => formatTicketCount(total.value))
 <template>
   <div class="inbox">
     <header class="inbox__header">
-      <h1 class="inbox__title">Bandeja de incidentes</h1>
-      <p class="inbox__subtitle">
-        Ordenada por prioridad y antigüedad. Selecciona un ticket para atenderlo.
-      </p>
+      <h1 class="inbox__title">{{ heading.title }}</h1>
+      <p class="inbox__subtitle">{{ heading.subtitle }}</p>
     </header>
 
     <PriorityFilter v-model="priority" :counts="counts" class="inbox__priorities" />
@@ -169,7 +194,13 @@ const rowCount = computed(() => formatTicketCount(total.value))
       @action="load"
     />
     <p v-else-if="firstLoad" class="inbox__state inbox__loading">Cargando tickets…</p>
-    <TicketTable v-else :tickets="tickets" :busy="loading">
+    <TicketTable
+      v-else
+      :tickets="tickets"
+      :busy="loading"
+      :mode="mode"
+      @reassign="reassigning = $event"
+    >
       <template #empty>
         <EmptyState
           title="No hay tickets que coincidan con los filtros"
@@ -184,6 +215,12 @@ const rowCount = computed(() => formatTicketCount(total.value))
       :page-size="PAGE_SIZE"
       :total="total"
       class="inbox__pagination"
+    />
+    <ReassignModal
+      v-if="reassigning"
+      :ticket="reassigning"
+      @close="reassigning = null"
+      @assigned="onAssigned"
     />
   </div>
 </template>

@@ -7,20 +7,36 @@ import type { Ticket } from '@/types/ticket'
 import { minutesSince } from '@/utils/clock'
 import { formatMinutes } from '@/utils/format'
 
+import RowActions from './RowActions.vue'
 import SlaCell from './SlaCell.vue'
 
-defineProps<{
-  tickets: Ticket[]
-  busy?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    tickets: Ticket[]
+    busy?: boolean
+    // El coordinador ve el técnico asignado y puede reasignar; el técnico ve el área.
+    mode?: 'tecnico' | 'coordinador'
+  }>(),
+  { busy: false, mode: 'tecnico' },
+)
+
+defineEmits<{ reassign: [ticket: Ticket] }>()
 
 const router = useRouter()
 
-const detailRoute = (id: string) => ({ name: 'bandeja-detalle', params: { id } })
+const coordinator = () => props.mode === 'coordinador'
+const detailRoute = (id: string) => ({
+  name: coordinator() ? 'general-detalle' : 'bandeja-detalle',
+  params: { id },
+})
+
+// Como en el prototipo, la columna muestra solo nombre y primer apellido.
+const shortName = (name?: string) => (name ? name.split(' ').slice(0, 2).join(' ') : 'Sin asignar')
 
 // Con el ratón se abre desde cualquier parte de la fila; con teclado, desde el enlace del ID.
+// Los controles de la fila, como el menú de acciones, no abren el detalle.
 function openRow(event: MouseEvent, id: string) {
-  if ((event.target as Element).closest('a')) return
+  if ((event.target as Element).closest('a, [data-row-actions]')) return
   router.push(detailRoute(id))
 }
 </script>
@@ -29,15 +45,19 @@ function openRow(event: MouseEvent, id: string) {
   <div class="tickets">
     <div role="table" aria-label="Tickets" :aria-busy="busy || undefined">
       <div role="rowgroup">
-        <div role="row" class="tickets__row tickets__row--head">
+        <div role="row" class="tickets__row tickets__row--head" :class="`tickets__row--${mode}`">
           <span role="columnheader">ID</span>
           <span role="columnheader">Prioridad</span>
           <span role="columnheader">Resumen</span>
-          <span role="columnheader">Área</span>
+          <span v-if="mode === 'tecnico'" role="columnheader">Área</span>
           <span role="columnheader">Departamento</span>
+          <span v-if="mode === 'coordinador'" role="columnheader">Técnico asignado</span>
           <span role="columnheader">Estado</span>
           <span role="columnheader">Antigüedad</span>
           <span role="columnheader" title="Tiempo restante de SLA">Tiempo restante de SLA</span>
+          <span v-if="mode === 'coordinador'" role="columnheader"
+            ><span class="tickets__hidden">Acciones</span></span
+          >
         </div>
       </div>
       <div role="rowgroup">
@@ -46,6 +66,7 @@ function openRow(event: MouseEvent, id: string) {
           :key="ticket.id"
           role="row"
           class="tickets__row"
+          :class="`tickets__row--${mode}`"
           @click="openRow($event, ticket.id)"
         >
           <span role="cell">
@@ -57,9 +78,19 @@ function openRow(event: MouseEvent, id: string) {
           <span role="cell" class="tickets__truncate" :title="ticket.description">
             {{ ticket.summary }}
           </span>
-          <span role="cell" class="tickets__truncate tickets__muted">{{ ticket.area }}</span>
+          <span v-if="mode === 'tecnico'" role="cell" class="tickets__truncate tickets__muted">
+            {{ ticket.area }}
+          </span>
           <span role="cell" class="tickets__truncate tickets__muted" :title="ticket.department">
             {{ ticket.department }}
+          </span>
+          <span
+            v-if="mode === 'coordinador'"
+            role="cell"
+            class="tickets__truncate"
+            :title="ticket.technician"
+          >
+            {{ shortName(ticket.technician) }}
           </span>
           <span role="cell"><StatusBadge :status="ticket.status" /></span>
           <span role="cell" class="tickets__muted tickets__number">
@@ -70,6 +101,13 @@ function openRow(event: MouseEvent, id: string) {
               :priority="ticket.priority"
               :age-minutes="minutesSince(ticket.createdAt)"
               :resolution-hours="ticket.resolutionHours"
+            />
+          </span>
+          <span v-if="mode === 'coordinador'" role="cell" data-row-actions>
+            <RowActions
+              v-if="ticket.status !== 'Resuelto'"
+              :ticket-id="ticket.id"
+              @reassign="$emit('reassign', ticket)"
             />
           </span>
         </div>
@@ -99,6 +137,12 @@ function openRow(event: MouseEvent, id: string) {
   border-bottom: 1px solid var(--color-border-subtle);
   font-size: var(--font-size-13);
   cursor: pointer;
+}
+
+.tickets__row--coordinador {
+  grid-template-columns:
+    104px 80px minmax(0, 2.2fr) minmax(0, 1.4fr) 132px
+    96px 84px 124px 40px;
 }
 
 .tickets__row:hover:not(.tickets__row--head) {
@@ -138,6 +182,15 @@ function openRow(event: MouseEvent, id: string) {
 
 .tickets__muted {
   color: var(--color-text-muted);
+}
+
+.tickets__hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .tickets__number {

@@ -159,6 +159,10 @@ Las pruebas usan `TEST_DATABASE_URL`: borran esa base y la migran desde cero al 
 | `POST` | `/api/tickets` | Técnico | Registra la captura: la vuelve a clasificar, le asigna el siguiente ID (`TCK-200030`, …) y al técnico de la sesión, y registra "Ticket creado" y "Clasificado por IA" |
 | `GET` | `/api/tickets/{id}` | Con sesión | Detalle de un ticket |
 | `GET` | `/api/tickets/{id}/events` | Con sesión | Historial del ticket en orden cronológico |
+| `POST` | `/api/tickets/{id}/attend` | Técnico asignado | Pasa un ticket Abierto a En atención y registra "Cambio de estado" |
+| `POST` | `/api/tickets/{id}/resolve` | Técnico asignado | Resuelve un ticket En atención con `solution` (10 caracteres o más) y `resolutionHours` (más de 0); registra "Ticket resuelto" |
+| `GET` | `/api/technicians` | Coordinador | Técnicos activos con su número de tickets sin resolver |
+| `POST` | `/api/tickets/{id}/assign` | Coordinador | Reasigna un ticket sin resolver a un técnico activo (`technician`); registra "Reasignación" |
 
 Las respuestas usan los nombres de campo de `front/src/types/` y las fechas en hora local de la mesa de ayuda (`TIMEZONE`), sin zona, como `2026-10-28 09:57`. Los tickets históricos no traen `technician` ni `analysis`.
 
