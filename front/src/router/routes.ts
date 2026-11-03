@@ -133,7 +133,11 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'historial/:id?',
         name: 'historial',
-        component: placeholder,
+        component: () => import('@/views/TicketHistoryView.vue'),
+        // El ID se normaliza: "tck-115796" en la URL abre TCK-115796.
+        props: (route) => ({
+          id: typeof route.params.id === 'string' ? route.params.id.toUpperCase() : undefined,
+        }),
         meta: { roles: ['auditor'], title: 'Historial de ticket' },
       },
     ],
