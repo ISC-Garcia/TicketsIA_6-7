@@ -59,7 +59,7 @@ SLOW_QUERIES = text(
     SELECT query, calls, mean_exec_time
     FROM pg_stat_statements
     WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
-      AND query !~* 'pg_stat|pg_database|pg_postmaster|current_setting|alembic_version'
+      AND query !~* 'pg_stat|pg_database|pg_postmaster|pg_catalog|current_setting|current_schema|alembic_version'
       AND query ~* '^\\s*(select|insert|update|delete|with)'
     ORDER BY mean_exec_time DESC
     LIMIT :limit
