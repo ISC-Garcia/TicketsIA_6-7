@@ -1,6 +1,6 @@
 """Endpoints de apoyo para las pruebas E2E. Solo se registran con APP_ENV=test."""
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from sqlalchemy import select, text
 
 from app.config import SettingsDep
@@ -14,9 +14,11 @@ router = APIRouter(prefix="/api/test", tags=["pruebas"])
 
 
 @router.post("/reset", status_code=status.HTTP_204_NO_CONTENT)
-def reset(db: DbDep, settings: SettingsDep) -> Response:
+def reset(request: Request, db: DbDep, settings: SettingsDep) -> Response:
     """Vuelve a cargar la semilla demo para que cada prueba E2E empiece del mismo estado."""
     seed_demo(db, settings.zone, settings.now())
+    # Los intentos fallidos de una prueba no bloquean el login de la siguiente.
+    request.app.state.login_limiter.failures.clear()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

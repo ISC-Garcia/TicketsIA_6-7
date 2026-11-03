@@ -1,6 +1,6 @@
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import Field
 from sqlalchemy import select
 
@@ -16,6 +16,7 @@ from app.security import create_token, hash_password, verify_password
 router = APIRouter(prefix="/api/auth", tags=["sesión"])
 
 INVALID_CREDENTIALS = "Usuario o contraseña incorrectos."
+TOO_MANY_ATTEMPTS = "Demasiados intentos fallidos. Espera un minuto antes de volver a intentar."
 
 
 class LoginRequest(ApiModel):
@@ -37,14 +38,27 @@ class LoginResponse(ApiModel):
 
 
 @router.post("/login")
-def login(body: LoginRequest, db: DbDep, settings: SettingsDep) -> LoginResponse:
+def login(request: Request, body: LoginRequest, db: DbDep, settings: SettingsDep) -> LoginResponse:
     username = body.username.strip().lower()
-    user = db.scalar(select(User).where(User.username == username))
+    limiter = request.app.state.login_limiter
+    client = request.client.host if request.client else "desconocido"
+    key = f"{client}:{username}"
+    wait = limiter.retry_after(key)
+    if wait:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=TOO_MANY_ATTEMPTS,
+            headers={"Retry-After": str(wait)},
+        )
 
+    user = db.scalar(select(User).where(User.username == username))
     # Usuario inexistente, desactivado o contraseña incorrecta: el mismo mensaje en los tres
     # casos, para no revelar qué cuentas existen.
     if user is None or not user.active or not verify_password(body.password, user.password_hash):
+        limiter.fail(key)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=INVALID_CREDENTIALS)
+
+    limiter.reset(key)
 
     record_event(db, settings, user_name=user.name, type="Inicio de sesión")
     db.commit()

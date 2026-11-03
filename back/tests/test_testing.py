@@ -48,3 +48,13 @@ def test_e9_06_el_endpoint_de_pruebas_ejecuta_un_respaldo(
 
     assert response.status_code == 204
     assert len(calls) == 1
+
+
+def test_e10_02_reset_limpia_los_intentos_fallidos(client: TestClient, demo: Session) -> None:
+    for _ in range(5):
+        client.post("/api/auth/login", json={"username": "tecnico", "password": "x"})
+
+    client.post("/api/test/reset")
+
+    response = client.post("/api/auth/login", json={"username": "tecnico", "password": "demo2026"})
+    assert response.status_code == 200
