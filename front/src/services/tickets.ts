@@ -63,3 +63,8 @@ export function listTechnicians(): Promise<Technician[]> {
 export function assignTicket(id: string, technician: string): Promise<Ticket> {
   return request(ticketPath(id, 'assign'), { method: 'POST', body: { technician } })
 }
+
+// Solo quien resolvió: queda como edición posterior al cierre (E4-07).
+export function correctResolution(id: string, resolution: Partial<Resolution>): Promise<Ticket> {
+  return request(ticketPath(id, 'resolution'), { method: 'PATCH', body: resolution })
+}

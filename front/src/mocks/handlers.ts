@@ -150,6 +150,7 @@ const usernameOf = (name?: string) => users.find((user) => user.name === name)?.
 const withUsername = (ticket: Ticket): Ticket => ({
   ...ticket,
   technicianUsername: usernameOf(ticket.technician),
+  resolvedByUsername: usernameOf(ticket.resolvedBy),
 })
 
 const sessionUser = (request: Request) => {
@@ -308,6 +309,26 @@ export const handlers = [
         resolvedBy: name,
       })
     })
+  }),
+
+  http.patch('*/api/tickets/:id/resolution', async ({ request, params }) => {
+    if (failing) return HttpResponse.error()
+    await delay(LATENCY_MS)
+    const body = (await request.json()) as Partial<Resolution>
+    const ticket = tickets.find((candidate) => candidate.id === params.id)
+    if (!ticket) return problem(404, 'Ticket no encontrado.')
+    if (ticket.status !== 'Resuelto') {
+      return problem(409, 'Solo se puede corregir la resolución de un ticket resuelto.')
+    }
+    if (usernameOf(ticket.resolvedBy) !== sessionUser(request)?.username) {
+      return problem(403, 'Solo quien resolvió el ticket puede corregir su resolución.')
+    }
+    const changed =
+      (body.solution !== undefined && body.solution !== ticket.solution) ||
+      (body.resolutionHours !== undefined && body.resolutionHours !== ticket.resolutionHours)
+    if (!changed) return problem(422, 'No hay cambios que guardar.')
+    Object.assign(ticket, body, { editedAfterClose: true })
+    return HttpResponse.json(withUsername(ticket))
   }),
 
   http.get('*/api/technicians', () =>

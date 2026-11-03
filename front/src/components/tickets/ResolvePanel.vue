@@ -8,7 +8,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import FormField from '@/components/ui/FormField.vue'
 import SidePanel from '@/components/ui/SidePanel.vue'
 import { ServiceError } from '@/services/http'
-import { resolveTicket } from '@/services/tickets'
+import { correctResolution, resolveTicket } from '@/services/tickets'
 import type { Ticket } from '@/types/ticket'
 import { minutesSince } from '@/utils/clock'
 
@@ -16,14 +16,19 @@ const MIN_SOLUTION = 10
 
 const props = defineProps<{
   ticket: Ticket
+  // Corrige un ticket ya resuelto en lugar de resolverlo (E4-07).
+  correction?: boolean
 }>()
 
 const emit = defineEmits<{ close: []; resolved: [ticket: Ticket]; history: [] }>()
 
-// Las horas se precalculan desde el registro del ticket; el técnico puede ajustarlas (P-8).
+// Al resolver, las horas se precalculan desde el registro del ticket y se pueden ajustar (P-8).
+// Al corregir, el formulario parte de lo que se registró.
 const form = reactive({
-  solution: '',
-  hours: (minutesSince(props.ticket.createdAt) / 60).toFixed(2),
+  solution: props.correction ? (props.ticket.solution ?? '') : '',
+  hours: props.correction
+    ? (props.ticket.resolutionHours ?? 0).toFixed(2)
+    : (minutesSince(props.ticket.createdAt) / 60).toFixed(2),
 })
 const errors = reactive<{ solution?: string; hours?: string }>({})
 const stage = ref<'form' | 'saving' | 'done'>('form')
@@ -31,11 +36,33 @@ const confirming = ref(false)
 const saveError = ref('')
 const resolved = ref<Ticket | null>(null)
 
-const hoursNote = computed(
-  () =>
-    `Calculado desde el registro del ticket (${props.ticket.createdAt.slice(11)}). Puedes ajustarlo.`,
+const COPY = {
+  resolve: {
+    title: 'Marcar como resuelto',
+    done: 'Ticket resuelto',
+    note: 'Al confirmar, el ticket se cerrará y el cambio quedará registrado en la bitácora del sistema.',
+    confirmLabel: 'Confirmar resolución',
+  },
+  correct: {
+    title: 'Corregir resolución',
+    done: 'Resolución corregida',
+    note: 'La corrección quedará registrada en la bitácora como una edición posterior al cierre.',
+    confirmLabel: 'Guardar corrección',
+  },
+}
+const copy = computed(() => COPY[props.correction ? 'correct' : 'resolve'])
+
+const hoursNote = computed(() =>
+  props.correction
+    ? `Registrado: ${(props.ticket.resolutionHours ?? 0).toFixed(2)} h.`
+    : `Calculado desde el registro del ticket (${props.ticket.createdAt.slice(11)}). Puedes ajustarlo.`,
 )
-const title = computed(() => (stage.value === 'done' ? 'Ticket resuelto' : 'Marcar como resuelto'))
+const title = computed(() => (stage.value === 'done' ? copy.value.done : copy.value.title))
+const confirmTitle = computed(() =>
+  props.correction
+    ? `¿Guardar la corrección de ${props.ticket.id}?`
+    : `¿Confirmar la resolución de ${props.ticket.id}?`,
+)
 
 function validate() {
   const hours = Number(form.hours.replace(',', '.'))
@@ -56,10 +83,13 @@ async function save() {
   confirming.value = false
   stage.value = 'saving'
   try {
-    resolved.value = await resolveTicket(props.ticket.id, {
+    const resolution = {
       solution: form.solution.trim(),
       resolutionHours: Number(Number(form.hours.replace(',', '.')).toFixed(2)),
-    })
+    }
+    resolved.value = props.correction
+      ? await correctResolution(props.ticket.id, resolution)
+      : await resolveTicket(props.ticket.id, resolution)
     stage.value = 'done'
     emit('resolved', resolved.value)
   } catch (cause) {
@@ -129,8 +159,13 @@ async function save() {
 
     <div v-else-if="resolved" class="resolve">
       <p class="resolve__done">
-        Ticket {{ resolved.id }} resuelto en {{ resolved.resolutionHours?.toFixed(2) }} h por
-        {{ resolved.resolvedBy }}
+        <template v-if="correction">
+          Resolución de {{ resolved.id }} corregida: {{ resolved.resolutionHours?.toFixed(2) }} h
+        </template>
+        <template v-else>
+          Ticket {{ resolved.id }} resuelto en {{ resolved.resolutionHours?.toFixed(2) }} h por
+          {{ resolved.resolvedBy }}
+        </template>
       </p>
       <div>
         <div class="resolve__label">Solución aplicada</div>
@@ -149,7 +184,7 @@ async function save() {
           Cancelar
         </BaseButton>
         <BaseButton type="submit" form="resolve-form" :disabled="stage === 'saving'">
-          Confirmar resolución
+          {{ copy.confirmLabel }}
         </BaseButton>
       </template>
     </template>
@@ -157,9 +192,9 @@ async function save() {
 
   <ConfirmDialog
     v-if="confirming"
-    :title="`¿Confirmar la resolución de ${ticket.id}?`"
-    body="El ticket se cerrará y el cambio quedará registrado en la bitácora del sistema."
-    confirm-label="Confirmar resolución"
+    :title="confirmTitle"
+    :body="copy.note"
+    :confirm-label="copy.confirmLabel"
     @confirm="save"
     @cancel="confirming = false"
   />
