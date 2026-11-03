@@ -1,6 +1,7 @@
 import { delay, http, HttpResponse } from 'msw'
 
 import type { Dashboard, DashboardPeriod, Trend } from '@/types/dashboard'
+import { MONITOR_PERIODS } from '@/types/database'
 import {
   EVENT_DATE_FILTERS,
   type AuditEvent,
@@ -19,7 +20,7 @@ import type {
 } from '@/types/ticket'
 import { minutesSince, now, toDateKey } from '@/utils/clock'
 
-import { backups, tables } from './database'
+import { backups, databaseStatus, tables } from './database'
 import { events } from './events'
 import { modelMetrics } from './model'
 import { tickets, type DemoTicket } from './tickets'
@@ -556,6 +557,10 @@ export const handlers = [
     }
     user.active = active
     return HttpResponse.json(user)
+  }),
+  http.get('*/api/database/status', ({ request }) => {
+    const period = pick(new URL(request.url).searchParams.get('period'), MONITOR_PERIODS) ?? '24h'
+    return respond(() => databaseStatus(period))
   }),
   http.get('*/api/database/tables', () => respond(() => tables)),
   http.get('*/api/database/backups', () => respond(() => backups)),

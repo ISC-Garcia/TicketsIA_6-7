@@ -1,4 +1,4 @@
-import type { Backup, DatabaseTable } from '@/types/database'
+import type { Backup, DatabaseStatus, DatabaseTable, MonitorPeriod } from '@/types/database'
 
 export const tables: DatabaseTable[] = [
   {
@@ -130,3 +130,54 @@ export const backups: Backup[] = [
   { date: '2026-10-23 03:00', size: '480 MB', duration: '2 min 08 s', status: 'Exitoso' },
   { date: '2026-10-22 03:00', size: '478 MB', duration: '2 min 06 s', status: 'Exitoso' },
 ]
+
+const HOURS = Array.from(
+  { length: 24 },
+  (_, index) => `${String((index + 12) % 24).padStart(2, '0')}:00`,
+)
+
+// Estado como lo devuelve la API, con huecos en las primeras horas: aún no había muestras.
+export function databaseStatus(period: MonitorPeriod): DatabaseStatus {
+  const labels =
+    period === '24h'
+      ? HOURS
+      : Array.from({ length: period === 'semana' ? 7 : 30 }, (_, index) => `Día ${index + 1}`)
+  const filled = (values: number[]) =>
+    labels.map((_, index) =>
+      index < labels.length - values.length
+        ? null
+        : values[index - (labels.length - values.length)]!,
+    )
+  return {
+    checkedAt: '2026-10-28 11:42:10',
+    server: {
+      online: true,
+      version: '17.11',
+      startedAt: '2026-10-16 07:30:00',
+      uptimeSeconds: 12 * 86400 + 4 * 3600 + 12 * 60,
+    },
+    connections: { active: 8, max: 100 },
+    latencyMs: 1.2,
+    queriesPerMinute: 142,
+    sizeBytes: 486 * 1024 * 1024,
+    cacheHitRatio: 99.4,
+    trend: {
+      period,
+      subtitle: period === '24h' ? 'Últimas 24 horas, por hora' : 'Por día',
+      labels,
+      queriesPerHour: filled([2100, 2500, 3100, 6200, 8100, 8520]),
+      connections: filled([2, 3, 4, 6, 8, 8]),
+    },
+    slowQueries: {
+      available: true,
+      items: [
+        { query: 'SELECT count(*) FROM tickets WHERE status = $1', meanMs: 120.4, calls: 1284 },
+        {
+          query: 'SELECT * FROM tickets ORDER BY priority_rank, created_at LIMIT $1',
+          meanMs: 84,
+          calls: 18402,
+        },
+      ],
+    },
+  }
+}

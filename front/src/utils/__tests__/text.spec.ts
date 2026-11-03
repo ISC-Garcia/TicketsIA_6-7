@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatLongDate, formatMinutes, formatTicketCount } from '../format'
+import {
+  formatBytes,
+  formatLongDate,
+  formatMinutes,
+  formatTicketCount,
+  formatUptime,
+} from '../format'
 import { initialsOf } from '../initials'
 
 describe('initialsOf', () => {
@@ -47,5 +53,28 @@ describe('formatTicketCount', () => {
     [8, '8 tickets'],
   ])('%s da %s', (count, expected) => {
     expect(formatTicketCount(count)).toBe(expected)
+  })
+})
+
+describe('formatUptime', () => {
+  it.each([
+    [40, '40 s'],
+    [8 * 60 + 5, '8 min'],
+    [3 * 3600 + 12 * 60, '3 h 12 min'],
+    [12 * 86400 + 4 * 3600 + 59 * 60, '12 d 4 h'],
+  ])('%s s se leen como %s', (seconds, expected) => {
+    expect(formatUptime(seconds)).toBe(expected)
+  })
+})
+
+describe('formatBytes', () => {
+  it.each([
+    [512, '512 B'],
+    [1536, '1.5 KB'],
+    [115_152_563, '110 MB'],
+    [1.25 * 1024 ** 3, '1.3 GB'],
+    [3 * 1024 ** 5, '3,072 TB'],
+  ])('%s bytes se leen como %s', (bytes, expected) => {
+    expect(formatBytes(bytes)).toBe(expected)
   })
 })

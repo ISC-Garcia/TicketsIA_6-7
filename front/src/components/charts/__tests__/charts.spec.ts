@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 import BarList from '../BarList.vue'
+import LineChart from '../LineChart.vue'
 import SlaColumns from '../SlaColumns.vue'
 import TrendChart from '../TrendChart.vue'
 
@@ -99,5 +100,50 @@ describe('SlaColumns', () => {
       '75',
       '100',
     ])
+  })
+})
+
+describe('LineChart', () => {
+  it('E9-03: corta la línea en los huecos y marca los puntos sueltos', () => {
+    const wrapper = mount(LineChart, {
+      props: {
+        name: 'Conexiones activas',
+        labels: ['A', 'B', 'C', 'D', 'E', 'F'],
+        values: [2, 4, null, 3, null, 5],
+      },
+    })
+
+    expect(wrapper.findAll('polyline')).toHaveLength(3)
+    // C y E no tienen muestra: D y F quedan solos y se marcan con un punto.
+    expect(wrapper.findAll('.line__dot')).toHaveLength(2)
+    expect(wrapper.find('.line__end').text()).toBe('5')
+    expect(wrapper.attributes('aria-label')).toBe('Conexiones activas. A: 2; B: 4; D: 3; F: 5')
+  })
+
+  it('con un solo tramo lo centra', () => {
+    const wrapper = mount(LineChart, {
+      props: { name: 'Consultas por hora', labels: ['09:00'], values: [120] },
+    })
+
+    expect(wrapper.find('.line__dot').attributes('style')).toContain('left: 50%')
+    expect(wrapper.findAll('.line__label').map((label) => label.text())).toEqual(['09:00'])
+  })
+
+  it('muestra pocas etiquetas del eje en periodos largos', () => {
+    const labels = Array.from({ length: 30 }, (_, index) => `Día ${index + 1}`)
+    const wrapper = mount(LineChart, {
+      props: { name: 'Consultas por hora', labels, values: labels.map(() => null) },
+    })
+
+    expect(wrapper.findAll('.line__label').map((label) => label.text())).toEqual([
+      'Día 1',
+      'Día 6',
+      'Día 11',
+      'Día 16',
+      'Día 21',
+      'Día 26',
+      'Día 30',
+    ])
+    expect(wrapper.find('.line__end').exists()).toBe(false)
   })
 })

@@ -142,13 +142,13 @@ describe('AppLayout', () => {
     })
 
     it.each([
-      ['/monitoreo', 'Estado general'],
-      ['/monitoreo/tablas', 'Tablas'],
-      ['/monitoreo/no-existe', 'Estado general'],
+      ['/modelo', 'Métricas'],
+      ['/modelo/matriz', 'Matriz de confusión'],
+      ['/modelo/no-existe', 'Métricas'],
     ])('%s muestra la pestaña %s', async (path, tab) => {
-      const { wrapper } = await mountAt(path, 'auditor')
+      const { wrapper } = await mountAt(path, 'coordinador')
 
-      expect(breadcrumbs(wrapper)).toEqual(['Monitoreo de base de datos', tab])
+      expect(breadcrumbs(wrapper)).toEqual(['Rendimiento del modelo', tab])
     })
   })
 

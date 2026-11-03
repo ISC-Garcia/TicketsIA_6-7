@@ -19,5 +19,6 @@ export const ICONS = {
   close: 'M6 6l12 12M18 6L6 18',
   check: 'M5 12.5l4.5 4.5L19 7.5',
   add: 'M12 5v14M5 12h14',
+  refresh: 'M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4',
   more: 'M12 5.5h.01M12 12h.01M12 18.5h.01',
 }
