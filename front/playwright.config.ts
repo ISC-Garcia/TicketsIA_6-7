@@ -59,7 +59,6 @@ export default defineConfig({
       timeout: 120_000,
       env: {
         API_PROXY: API_URL,
-        VITE_API_MOCK: 'false',
         VITE_DEMO_MODE: 'true',
       },
     },

@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router'
 
 import PriorityBadge from '@/components/ui/PriorityBadge.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
+import { useNow } from '@/composables/useNow'
 import type { Ticket } from '@/types/ticket'
 import { minutesSince } from '@/utils/clock'
 import { formatMinutes } from '@/utils/format'
@@ -23,6 +24,7 @@ const props = withDefaults(
 defineEmits<{ reassign: [ticket: Ticket] }>()
 
 const router = useRouter()
+const current = useNow()
 
 const coordinator = () => props.mode === 'coordinador'
 const detailRoute = (id: string) => ({
@@ -94,12 +96,12 @@ function openRow(event: MouseEvent, id: string) {
           </span>
           <span role="cell"><StatusBadge :status="ticket.status" /></span>
           <span role="cell" class="tickets__muted tickets__number">
-            {{ formatMinutes(minutesSince(ticket.createdAt)) }}
+            {{ formatMinutes(minutesSince(ticket.createdAt, current)) }}
           </span>
           <span role="cell">
             <SlaCell
               :priority="ticket.priority"
-              :age-minutes="minutesSince(ticket.createdAt)"
+              :age-minutes="minutesSince(ticket.createdAt, current)"
               :resolution-hours="ticket.resolutionHours"
             />
           </span>

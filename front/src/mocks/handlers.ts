@@ -25,11 +25,10 @@ import { modelMetrics } from './model'
 import { tickets, type DemoTicket } from './tickets'
 import { users } from './users'
 
-// Imita a la API: mismas rutas, mismos parámetros y mismas respuestas. Lo usan las pruebas
-// unitarias y, con VITE_API_MOCK=true, el front cuando no hay back.
+// Imita a la API: mismas rutas, mismos parámetros y mismas respuestas. Solo lo usan las pruebas
+// unitarias: la aplicación siempre habla con la API real.
 
 export const MOCK_PASSWORD = 'demo2026'
-const LATENCY_MS = import.meta.env.MODE === 'test' ? 0 : 300
 const EVENTS_PER_PAGE = 10
 const WEEK_DAYS_BACK = 6
 const MINUTES_IN_HOUR = 60
@@ -38,7 +37,7 @@ const DATE_LIMITS: Record<Exclude<TicketDateFilter, 'hoy'>, number> = {
   '7': 7 * 24 * MINUTES_IN_HOUR,
 }
 
-let failing = import.meta.env.VITE_MOCK_FAILURE === 'true'
+let failing = false
 
 // Simula que el servidor no responde, para probar los estados de error.
 export const setMockFailure = (value: boolean) => {
@@ -153,7 +152,7 @@ export function resetMockData() {
 
 async function respond<T>(body: () => T) {
   if (failing) return HttpResponse.error()
-  await delay(LATENCY_MS)
+  await delay(0)
   return HttpResponse.json(body() as never)
 }
 
@@ -180,7 +179,7 @@ async function changeTicket(
   change: (ticket: DemoTicket, name: string) => Response | void,
 ) {
   if (failing) return HttpResponse.error()
-  await delay(LATENCY_MS)
+  await delay(0)
   const ticket = tickets.find((candidate) => candidate.id === id)
   if (!ticket) return problem(404, 'Ticket no encontrado.')
   const user = sessionUser(request)
@@ -254,7 +253,7 @@ function simulatedDashboard(period: DashboardPeriod): Dashboard {
 export const handlers = [
   http.post('*/api/auth/login', async ({ request }) => {
     if (failing) return HttpResponse.error()
-    await delay(LATENCY_MS)
+    await delay(0)
 
     const { username, password } = (await request.json()) as Record<string, string>
     const user = users.find(
@@ -269,7 +268,7 @@ export const handlers = [
 
   http.post('*/api/auth/password', async ({ request }) => {
     if (failing) return HttpResponse.error()
-    await delay(LATENCY_MS)
+    await delay(0)
     const user = sessionUser(request)
     const { currentPassword, newPassword } = (await request.json()) as Record<string, string>
     if (!user) return problem(401, 'Tu sesión terminó.')
@@ -305,7 +304,7 @@ export const handlers = [
 
   http.post('*/api/tickets/analyze', async ({ request }) => {
     if (failing) return HttpResponse.error()
-    await delay(LATENCY_MS)
+    await delay(0)
     const draft = (await request.json()) as TicketDraft
     const errors = draftErrors(draft)
     if (errors.length) {
@@ -316,7 +315,7 @@ export const handlers = [
 
   http.post('*/api/tickets', async ({ request }) => {
     if (failing) return HttpResponse.error()
-    await delay(LATENCY_MS)
+    await delay(0)
     const draft = (await request.json()) as TicketDraft
     const result = simulateAnalysis(draft)
     const ticket = {
@@ -406,7 +405,7 @@ export const handlers = [
 
   http.patch('*/api/tickets/:id/resolution', async ({ request, params }) => {
     if (failing) return HttpResponse.error()
-    await delay(LATENCY_MS)
+    await delay(0)
     const body = (await request.json()) as Partial<Resolution>
     const ticket = tickets.find((candidate) => candidate.id === params.id)
     if (!ticket) return problem(404, 'Ticket no encontrado.')
@@ -441,7 +440,7 @@ export const handlers = [
 
   http.post('*/api/tickets/:id/assign', async ({ request, params }) => {
     if (failing) return HttpResponse.error()
-    await delay(LATENCY_MS)
+    await delay(0)
     const { technician } = (await request.json()) as { technician: string }
     const ticket = tickets.find((candidate) => candidate.id === params.id)
     const target = users.find((user) => user.username === technician && user.role === 'tecnico')
@@ -460,14 +459,14 @@ export const handlers = [
   http.get('*/api/tickets/:id', async ({ params }) => {
     const ticket = tickets.find((candidate) => candidate.id === params.id)
     if (failing || ticket) return respond(() => ticket && withUsername(ticket))
-    await delay(LATENCY_MS)
+    await delay(0)
     return HttpResponse.json({ detail: 'Ticket no encontrado.' }, { status: 404 })
   }),
 
   // Igual que la API: el historial de un ticket que no existe responde 404.
   http.get('*/api/tickets/:id/events', async ({ params }) => {
     if (!failing && !tickets.some((ticket) => ticket.id === params.id)) {
-      await delay(LATENCY_MS)
+      await delay(0)
       return HttpResponse.json({ detail: 'Ticket no encontrado.' }, { status: 404 })
     }
     return respond(() =>
@@ -513,13 +512,17 @@ export const handlers = [
     return respond(() => simulatedDashboard(period))
   }),
 
+  http.get('*/api/health', () =>
+    respond(() => ({ status: 'ok', database: true, modelLoaded: true, now: now().toISOString() })),
+  ),
+
   http.get('*/api/model/metrics', () => respond(() => modelMetrics)),
 
   http.get('*/api/users', () => respond(() => users)),
 
   http.post('*/api/users', async ({ request }) => {
     if (failing) return HttpResponse.error()
-    await delay(LATENCY_MS)
+    await delay(0)
     const body = (await request.json()) as NewUser
     if (users.some((user) => user.username === body.username)) {
       return HttpResponse.json(
@@ -544,7 +547,7 @@ export const handlers = [
 
   http.patch('*/api/users/:username', async ({ request, params }) => {
     if (failing) return HttpResponse.error()
-    await delay(LATENCY_MS)
+    await delay(0)
     const { active } = (await request.json()) as { active: boolean }
     const user = users.find((candidate) => candidate.username === params.username)
     if (!user) return problem(404, 'Usuario no encontrado.')

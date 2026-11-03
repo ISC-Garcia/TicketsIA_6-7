@@ -7,15 +7,10 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './router'
+import { syncClockWithServer } from './services/health'
 
-// Sin back disponible, MSW responde en el navegador con los datos de src/mocks/.
-async function startMockApi() {
-  if (import.meta.env.VITE_API_MOCK !== 'true') return
-  const { worker } = await import('./mocks/browser')
-  await worker.start({ onUnhandledRequest: 'bypass' })
-}
-
-await startMockApi()
+// Antes de mostrar nada, el front toma la hora del servidor como referencia.
+await syncClockWithServer()
 
 const app = createApp(App)
 

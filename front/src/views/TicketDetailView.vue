@@ -21,6 +21,7 @@ import { useSessionStore } from '@/stores/session'
 import { useToastStore } from '@/stores/toast'
 import type { AuditEvent } from '@/types/event'
 import type { Ticket } from '@/types/ticket'
+import { useNow } from '@/composables/useNow'
 import { minutesSince } from '@/utils/clock'
 import { formatMinutes } from '@/utils/format'
 import { SLA_HOURS, slaOf, type SlaState } from '@/utils/sla'
@@ -152,10 +153,12 @@ function showHistory() {
 
 const backToInbox = () => router.push({ name: String(route.meta.parent ?? 'bandeja') })
 
+const current = useNow()
+
 const sla = computed(() => {
   if (!ticket.value) return null
   const { priority, createdAt, resolutionHours } = ticket.value
-  const status = slaOf(priority, minutesSince(createdAt), resolutionHours)
+  const status = slaOf(priority, minutesSince(createdAt, current.value), resolutionHours)
 
   let label = `Vence en ${formatMinutes(status.remainingMinutes)}`
   if (resolutionHours !== undefined) label = `Resuelto en ${resolutionHours.toFixed(2)} h`

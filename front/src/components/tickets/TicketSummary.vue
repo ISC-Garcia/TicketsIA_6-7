@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import type { Ticket } from '@/types/ticket'
+import { useNow } from '@/composables/useNow'
 import { minutesSince } from '@/utils/clock'
 import { formatMinutes } from '@/utils/format'
 import { highlightText } from '@/utils/highlight'
@@ -12,6 +13,8 @@ const props = defineProps<{
 
 const segments = computed(() => highlightText(props.ticket.description, props.ticket.highlights))
 
+const current = useNow()
+
 const details = computed(() => {
   const { ticket } = props
   const rows = [
@@ -21,7 +24,7 @@ const details = computed(() => {
     ['Departamento', ticket.department],
     ['Técnico asignado', ticket.technician ?? 'Sin asignar'],
     ['Fecha de registro', ticket.createdAt],
-    ['Antigüedad', formatMinutes(minutesSince(ticket.createdAt))],
+    ['Antigüedad', formatMinutes(minutesSince(ticket.createdAt, current.value))],
   ]
   if (ticket.resolutionHours !== undefined) {
     rows.push(['Tiempo de resolución', `${ticket.resolutionHours.toFixed(2)} h`])
