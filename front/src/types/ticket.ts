@@ -56,7 +56,8 @@ export interface Ticket {
   editedAfterClose?: boolean
 }
 
-export type TicketDateFilter = 'hoy' | '48' | '7'
+export const TICKET_DATE_FILTERS = ['hoy', '48', '7'] as const
+export type TicketDateFilter = (typeof TICKET_DATE_FILTERS)[number]
 
 export interface TicketQuery {
   priority?: Priority

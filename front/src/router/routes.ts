@@ -1,6 +1,7 @@
 import type { RouteRecordRaw } from 'vue-router'
 
 import type { Role } from '@/types/user'
+import { parseTicketFilters } from '@/utils/ticketFilters'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -42,7 +43,8 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'bandeja',
         name: 'bandeja',
-        component: placeholder,
+        component: () => import('@/views/InboxView.vue'),
+        props: (route) => ({ filters: parseTicketFilters(route.query) }),
         meta: { roles: ['tecnico'], title: 'Bandeja de incidentes' },
       },
       {
