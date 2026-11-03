@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { currentUser, login, logout } from '@/services/auth'
+import { changePassword, currentUser, login, logout, type Session } from '@/services/auth'
 import { setAuthToken } from '@/services/http'
 import type { User } from '@/types/user'
 
@@ -40,13 +40,20 @@ export const useSessionStore = defineStore('session', () => {
     sessionStorage.removeItem(STORAGE_KEY)
   }
 
-  async function signIn(username: string, password: string) {
-    const session = await login(username, password)
+  function store(session: Session) {
     user.value = session.user
     token.value = session.token
     notice.value = ''
     setAuthToken(session.token)
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session))
+  }
+
+  async function signIn(username: string, password: string) {
+    store(await login(username, password))
+  }
+
+  async function updatePassword(current: string, next: string) {
+    store(await changePassword(current, next))
   }
 
   // Registra el cierre en la bitácora; si el servidor no responde, la sesión se cierra igual.
@@ -78,5 +85,5 @@ export const useSessionStore = defineStore('session', () => {
     notice.value = SESSION_EXPIRED
   }
 
-  return { user, token, notice, isAuthenticated, signIn, signOut, refresh, expire }
+  return { user, token, notice, isAuthenticated, signIn, updatePassword, signOut, refresh, expire }
 })

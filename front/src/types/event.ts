@@ -7,6 +7,7 @@ export const EVENT_TYPES = [
   'Edición de datos',
   'Inicio de sesión',
   'Cierre de sesión',
+  'Cambio de contraseña',
 ] as const
 export type EventType = (typeof EVENT_TYPES)[number]
 

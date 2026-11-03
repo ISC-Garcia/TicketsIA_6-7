@@ -2,6 +2,7 @@ import { delay, http, HttpResponse } from 'msw'
 
 import type { Dashboard, DashboardPeriod, Trend } from '@/types/dashboard'
 import type { AuditEvent, EventDateFilter, EventType } from '@/types/event'
+import type { NewUser, User } from '@/types/user'
 import type { Page } from '@/types/page'
 import { DEPARTMENTS, PRIORITIES, TICKET_DATE_FILTERS, TICKET_STATUSES } from '@/types/ticket'
 import type {
@@ -131,11 +132,16 @@ const FIRST_NEW_TICKET = 200030
 let nextTicketNumber = FIRST_NEW_TICKET
 
 const originalTickets = structuredClone(tickets)
+const originalUsers = structuredClone(users)
+// Contraseñas cambiadas o de usuarios nuevos; las demás son MOCK_PASSWORD.
+const passwords: Record<string, string> = {}
 
 // Restaura la demo (quita registros, resoluciones y reasignaciones) para que cada prueba
 // empiece con los mismos datos.
 export function resetMockData() {
   tickets.splice(0, tickets.length, ...structuredClone(originalTickets))
+  users.splice(0, users.length, ...structuredClone(originalUsers))
+  for (const username of Object.keys(passwords)) delete passwords[username]
   nextTicketNumber = FIRST_NEW_TICKET
 }
 
@@ -249,9 +255,31 @@ export const handlers = [
       (candidate) => candidate.username === (username ?? '').trim().toLowerCase(),
     )
     // Una cuenta desactivada recibe el mismo error para no revelar qué usuarios existen.
-    if (!user?.active || password !== MOCK_PASSWORD) {
+    if (!user?.active || password !== (passwords[user.username] ?? MOCK_PASSWORD)) {
       return HttpResponse.json({ detail: 'Usuario o contraseña incorrectos.' }, { status: 401 })
     }
+    return HttpResponse.json({ token: `simulado-${user.username}`, user })
+  }),
+
+  http.post('*/api/auth/password', async ({ request }) => {
+    if (failing) return HttpResponse.error()
+    await delay(LATENCY_MS)
+    const user = sessionUser(request)
+    const { currentPassword, newPassword } = (await request.json()) as Record<string, string>
+    if (!user) return problem(401, 'Tu sesión terminó.')
+    const fieldProblem = (field: string, message: string) =>
+      HttpResponse.json(
+        { detail: 'Revisa los datos enviados.', errors: [{ field, message }] },
+        { status: 422 },
+      )
+    if (currentPassword !== (passwords[user.username] ?? MOCK_PASSWORD)) {
+      return fieldProblem('currentPassword', 'La contraseña actual no es correcta.')
+    }
+    if (newPassword === currentPassword) {
+      return fieldProblem('newPassword', 'Debe ser distinta de la actual.')
+    }
+    passwords[user.username] = newPassword ?? ''
+    user.mustChangePassword = false
     return HttpResponse.json({ token: `simulado-${user.username}`, user })
   }),
 
@@ -475,6 +503,44 @@ export const handlers = [
   }),
 
   http.get('*/api/users', () => respond(() => users)),
+
+  http.post('*/api/users', async ({ request }) => {
+    if (failing) return HttpResponse.error()
+    await delay(LATENCY_MS)
+    const body = (await request.json()) as NewUser
+    if (users.some((user) => user.username === body.username)) {
+      return HttpResponse.json(
+        {
+          detail: 'Revisa los datos enviados.',
+          errors: [{ field: 'username', message: 'Ese usuario ya existe.' }],
+        },
+        { status: 422 },
+      )
+    }
+    const user: User = {
+      name: body.name.trim(),
+      username: body.username,
+      role: body.role,
+      active: true,
+      mustChangePassword: true,
+    }
+    users.push(user)
+    passwords[user.username] = body.password
+    return HttpResponse.json(user, { status: 201 })
+  }),
+
+  http.patch('*/api/users/:username', async ({ request, params }) => {
+    if (failing) return HttpResponse.error()
+    await delay(LATENCY_MS)
+    const { active } = (await request.json()) as { active: boolean }
+    const user = users.find((candidate) => candidate.username === params.username)
+    if (!user) return problem(404, 'Usuario no encontrado.')
+    if (!active && sessionUser(request)?.username === user.username) {
+      return problem(409, 'No puedes desactivar tu propia cuenta.')
+    }
+    user.active = active
+    return HttpResponse.json(user)
+  }),
   http.get('*/api/database/tables', () => respond(() => tables)),
   http.get('*/api/database/backups', () => respond(() => backups)),
 ]

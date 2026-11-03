@@ -156,4 +156,16 @@ describe('useSessionStore', () => {
       expect(useSessionStore().isAuthenticated).toBe(false)
     },
   )
+
+  it('E5-03: cambiar la contraseña guarda la sesión nueva', async () => {
+    const session = useSessionStore()
+    await session.signIn('auditor', 'demo2026')
+
+    await session.updatePassword('demo2026', 'nueva-clave-1')
+
+    expect(session.user?.mustChangePassword).toBe(false)
+    expect(JSON.parse(sessionStorage.getItem('tickets.session')!).user.username).toBe('auditor')
+    await expect(session.signIn('auditor', 'demo2026')).rejects.toBeInstanceOf(AuthError)
+    await session.signIn('auditor', 'nueva-clave-1')
+  })
 })
