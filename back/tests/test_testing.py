@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.main import create_app
-from app.models import Event, Ticket
+from app.models import Event, Ticket, User
 
 
 def test_e0_07_reset_recarga_la_semilla_demo(client: TestClient, demo: Session) -> None:
@@ -24,3 +24,13 @@ def test_e0_07_reset_no_existe_fuera_de_las_pruebas(settings: Settings) -> None:
 
     with TestClient(create_app(development)) as client:
         assert client.post("/api/test/reset").status_code == 404
+
+
+def test_e1_04_las_pruebas_pueden_desactivar_una_cuenta(client: TestClient, demo: Session) -> None:
+    response = client.patch("/api/test/users/sxala", json={"active": False})
+
+    demo.expire_all()
+    assert response.status_code == 204
+    assert demo.scalars(select(User.active).where(User.username == "sxala")).one() is False
+    missing = client.patch("/api/test/users/nadie", json={"active": False})
+    assert missing.status_code == 404

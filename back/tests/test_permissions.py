@@ -28,6 +28,7 @@ PERMISSIONS: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("GET", "/api/model/info"): ANY_ROLE,
     # Solo existe con APP_ENV=test (ver test_testing.py).
     ("POST", "/api/test/reset"): PUBLIC,
+    ("PATCH", "/api/test/users/{username}"): PUBLIC,
 }
 
 

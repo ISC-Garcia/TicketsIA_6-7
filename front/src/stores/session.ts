@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { login, logout } from '@/services/auth'
+import { currentUser, login, logout } from '@/services/auth'
 import { setAuthToken } from '@/services/http'
 import type { User } from '@/types/user'
 
@@ -60,11 +60,23 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  // Al recargar la página se confirma con la API que la sesión guardada sigue vigente.
+  // Si ya no lo es, el manejador de 401 la cierra; un fallo de red no la cierra.
+  async function refresh() {
+    if (!token.value) return
+    try {
+      user.value = await currentUser()
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ token: token.value, user: user.value }))
+    } catch {
+      // El aviso y la redirección los decide el manejador de 401.
+    }
+  }
+
   function expire() {
     if (!user.value) return
     clear()
     notice.value = SESSION_EXPIRED
   }
 
-  return { user, token, notice, isAuthenticated, signIn, signOut, expire }
+  return { user, token, notice, isAuthenticated, signIn, signOut, refresh, expire }
 })

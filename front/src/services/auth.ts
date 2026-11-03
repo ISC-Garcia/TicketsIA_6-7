@@ -33,3 +33,7 @@ export async function login(username: string, password: string): Promise<Session
 export function logout(): Promise<void> {
   return request('/api/auth/logout', { method: 'POST' })
 }
+
+export function currentUser(): Promise<User> {
+  return request('/api/auth/me')
+}

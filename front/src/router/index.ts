@@ -11,7 +11,16 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to) => resolveAccess(to, useSessionStore().user))
+let sessionChecked = false
+
+router.beforeEach(async (to) => {
+  const session = useSessionStore()
+  if (!sessionChecked) {
+    sessionChecked = true
+    await session.refresh()
+  }
+  return resolveAccess(to, session.user)
+})
 
 // Si la API rechaza el token a mitad de la sesión (venció o desactivaron la cuenta),
 // se cierra la sesión y se vuelve al login con un aviso.

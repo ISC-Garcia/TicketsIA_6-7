@@ -101,6 +101,45 @@ describe('useSessionStore', () => {
     expect(session.notice).toBe('')
   })
 
+  it('al recargar confirma la sesión con la API y actualiza el usuario', async () => {
+    const session = useSessionStore()
+    await session.signIn('auditor', 'demo2026')
+    server.use(
+      http.get('*/api/auth/me', () =>
+        HttpResponse.json({ ...session.user, name: 'Nombre actualizado' }),
+      ),
+    )
+
+    await session.refresh()
+
+    expect(session.user?.name).toBe('Nombre actualizado')
+    expect(sessionStorage.getItem('tickets.session')).toContain('Nombre actualizado')
+  })
+
+  it('al recargar sin conexión conserva la sesión', async () => {
+    const session = useSessionStore()
+    await session.signIn('auditor', 'demo2026')
+    server.use(http.get('*/api/auth/me', () => HttpResponse.error()))
+
+    await session.refresh()
+
+    expect(session.isAuthenticated).toBe(true)
+  })
+
+  it('sin sesión no consulta la API al recargar', async () => {
+    let calls = 0
+    server.use(
+      http.get('*/api/auth/me', () => {
+        calls += 1
+        return HttpResponse.json({})
+      }),
+    )
+
+    await useSessionStore().refresh()
+
+    expect(calls).toBe(0)
+  })
+
   it('sin sesión no deja aviso al vencer', () => {
     const session = useSessionStore()
 

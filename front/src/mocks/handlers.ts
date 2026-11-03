@@ -96,6 +96,16 @@ export const handlers = [
     return HttpResponse.json({ token: `simulado-${user.username}`, user })
   }),
 
+  http.get('*/api/auth/me', ({ request }) => {
+    if (failing) return HttpResponse.error()
+    const token = request.headers.get('authorization')?.replace('Bearer simulado-', '')
+    const user = users.find((candidate) => candidate.username === token && candidate.active)
+    if (!user) {
+      return HttpResponse.json({ detail: 'Tu sesión terminó.' }, { status: 401 })
+    }
+    return HttpResponse.json(user)
+  }),
+
   http.post('*/api/auth/logout', () =>
     failing ? HttpResponse.error() : new HttpResponse(null, { status: 204 }),
   ),
