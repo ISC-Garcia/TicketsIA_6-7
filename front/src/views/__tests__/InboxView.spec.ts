@@ -3,7 +3,11 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { h } from 'vue'
 import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 
+import { http, HttpResponse } from 'msw'
+
 import { setMockFailure } from '@/mocks/handlers'
+import { server } from '@/mocks/server'
+import { tickets } from '@/mocks/tickets'
 import { parseTicketFilters } from '@/utils/ticketFilters'
 
 import InboxView from '../InboxView.vue'
@@ -161,5 +165,52 @@ describe('InboxView', () => {
     await settle()
 
     expect(rowIds(wrapper)).toHaveLength(8)
+  })
+
+  describe('paginación', () => {
+    // 60 resueltos: la API devuelve 25 por página.
+    function serveResolved(pages: string[]) {
+      server.use(
+        http.get('*/api/tickets', ({ request }) => {
+          const params = new URL(request.url).searchParams
+          pages.push(`${params.get('page') ?? '1'}/${params.get('pageSize')}`)
+          return HttpResponse.json({ items: tickets.slice(0, 3), total: 60 })
+        }),
+      )
+    }
+
+    it('pide 25 por página y muestra el total real', async () => {
+      const pages: string[] = []
+      serveResolved(pages)
+      const { wrapper } = await mountInbox('/bandeja?estado=Resuelto')
+
+      expect(pages).toEqual(['1/25'])
+      expect(wrapper.find('.inbox__count').text()).toBe('60 tickets')
+      expect(wrapper.find('nav[aria-label="Paginación"]').text()).toContain(
+        'Mostrando 1 a 25 de 60',
+      )
+    })
+
+    it('avanza de página desde la URL y la reinicia al cambiar un filtro', async () => {
+      const pages: string[] = []
+      serveResolved(pages)
+      const { wrapper, router } = await mountInbox('/bandeja?estado=Resuelto')
+
+      await wrapper.findAll('nav[aria-label="Paginación"] button')[1]!.trigger('click')
+      await settle()
+      expect(router.currentRoute.value.query.pagina).toBe('2')
+      expect(pages[pages.length - 1]).toBe('2/25')
+
+      await wrapper.find('select[aria-label="Departamento"]').setValue('Redes y Conectividad')
+      await settle()
+      expect(router.currentRoute.value.query.pagina).toBeUndefined()
+      expect(pages[pages.length - 1]).toBe('1/25')
+    })
+
+    it('sin más de una página no muestra la paginación', async () => {
+      const { wrapper } = await mountInbox()
+
+      expect(wrapper.find('nav[aria-label="Paginación"]').exists()).toBe(false)
+    })
   })
 })

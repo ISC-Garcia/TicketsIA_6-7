@@ -47,7 +47,24 @@ describe('ticketFiltersToQuery', () => {
       estado: undefined,
       fecha: undefined,
       q: undefined,
+      pagina: undefined,
     })
+  })
+
+  it('guarda la página solo desde la segunda', () => {
+    expect(ticketFiltersToQuery({ page: 1 }).pagina).toBeUndefined()
+    expect(ticketFiltersToQuery({ page: 3 }).pagina).toBe(3)
+  })
+
+  it.each([
+    ['3', 3],
+    ['1', undefined],
+    ['0', undefined],
+    ['-2', undefined],
+    ['2.5', undefined],
+    ['abc', undefined],
+  ])('lee la página %s como %s', (pagina, page) => {
+    expect(parseTicketFilters({ pagina }).page).toBe(page)
   })
 
   it('ida y vuelta conserva los filtros', () => {
@@ -69,5 +86,6 @@ describe('hasTicketFilters', () => {
     expect(hasTicketFilters({})).toBe(false)
     expect(hasTicketFilters({ search: undefined })).toBe(false)
     expect(hasTicketFilters({ date: '48' })).toBe(true)
+    expect(hasTicketFilters({ page: 4 })).toBe(false)
   })
 })

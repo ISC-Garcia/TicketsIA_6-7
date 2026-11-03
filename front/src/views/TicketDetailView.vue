@@ -127,7 +127,11 @@ const sla = computed(() => {
 
     <BaseTabs v-slot="{ active }" v-model="tab" :tabs="TABS" label="Secciones del ticket">
       <TicketSummary v-if="active === 'resumen'" :ticket="ticket" />
-      <TicketAnalysis v-else-if="active === 'analisis'" :ticket="ticket" />
+      <template v-else-if="active === 'analisis'">
+        <TicketAnalysis v-if="ticket.analysis" :ticket="{ ...ticket, analysis: ticket.analysis }" />
+        <!-- Los tickets históricos del dataset se registraron antes de que el modelo existiera. -->
+        <EmptyState v-else title="Este ticket histórico no tiene análisis del modelo" />
+      </template>
       <div v-else class="detail__history">
         <TicketTimeline v-if="events.length" :events="events" />
         <p v-else class="detail__empty-history">Este ticket aún no tiene movimientos.</p>

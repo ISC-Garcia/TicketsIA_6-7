@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import App from '@/App.vue'
+import { forgetVisits, rememberVisit } from '@/router/lastVisited'
 import { routes } from '@/router/routes'
 import { useSessionStore } from '@/stores/session'
 import type { Role } from '@/types/user'
@@ -36,6 +37,7 @@ const breadcrumbs = (wrapper: Awaited<ReturnType<typeof mountAt>>['wrapper']) =>
 
 describe('AppLayout', () => {
   beforeEach(() => {
+    forgetVisits()
     localStorage.clear()
     sessionStorage.clear()
   })
@@ -105,6 +107,15 @@ describe('AppLayout', () => {
 
       expect(breadcrumbs(wrapper)).toEqual(['Dashboard de carga de trabajo'])
       expect(wrapper.find('a.header__crumb').exists()).toBe(false)
+    })
+
+    it('el breadcrumb del detalle vuelve a la bandeja con sus filtros', async () => {
+      rememberVisit({ name: 'bandeja', query: { prioridad: 'Alta', q: 'red' }, params: {} })
+      const { wrapper } = await mountAt('/bandeja/TCK-200011')
+
+      expect(wrapper.find('a.header__crumb').attributes('href')).toBe(
+        '/bandeja?prioridad=Alta&q=red',
+      )
     })
 
     it('el detalle enlaza a su bandeja y muestra el ID', async () => {

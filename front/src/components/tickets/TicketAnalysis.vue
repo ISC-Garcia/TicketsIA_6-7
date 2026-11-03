@@ -3,10 +3,10 @@ import { computed } from 'vue'
 
 import PriorityBadge from '@/components/ui/PriorityBadge.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
-import type { Priority, Ticket } from '@/types/ticket'
+import type { Analysis, Priority, Ticket } from '@/types/ticket'
 
 const props = defineProps<{
-  ticket: Ticket
+  ticket: Ticket & { analysis: Analysis }
 }>()
 
 // De mayor a menor; la clase ganadora se distingue con el color fuerte.

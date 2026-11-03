@@ -13,11 +13,13 @@ const page = defineModel<number>('page', { required: true })
 const lastPage = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)))
 const firstItem = computed(() => (page.value - 1) * props.pageSize + 1)
 const lastItem = computed(() => Math.min(props.total, page.value * props.pageSize))
+
+const number = (value: number) => value.toLocaleString('es-MX')
 </script>
 
 <template>
   <nav aria-label="Paginación" class="pagination">
-    <span>Mostrando {{ firstItem }} a {{ lastItem }} de {{ total }}</span>
+    <span>Mostrando {{ number(firstItem) }} a {{ number(lastItem) }} de {{ number(total) }}</span>
     <div class="pagination__actions">
       <BaseButton variant="secondary" size="sm" :disabled="page <= 1" @click="page -= 1">
         Anterior

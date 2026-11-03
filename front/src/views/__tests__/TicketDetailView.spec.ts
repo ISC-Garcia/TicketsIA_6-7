@@ -3,7 +3,11 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { h } from 'vue'
 import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 
+import { http, HttpResponse } from 'msw'
+
 import { setMockFailure } from '@/mocks/handlers'
+import { server } from '@/mocks/server'
+import { tickets } from '@/mocks/tickets'
 
 import TicketDetailView from '../TicketDetailView.vue'
 
@@ -113,5 +117,20 @@ describe('TicketDetailView', () => {
     await settle()
 
     expect(wrapper.find('h1').text()).toBe('TCK-200007')
+  })
+
+  it('un ticket histórico no tiene técnico ni análisis', async () => {
+    const {
+      technician: _technician,
+      analysis: _analysis,
+      ...historic
+    } = tickets.find((ticket) => ticket.id === 'TCK-115796')!
+    server.use(http.get('*/api/tickets/TCK-100001', () => HttpResponse.json(historic)))
+    server.use(http.get('*/api/tickets/TCK-100001/events', () => HttpResponse.json([])))
+    const { wrapper } = await mountDetail('TCK-100001')
+
+    expect(wrapper.find('.summary').text()).toContain('Sin asignar')
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click')
+    expect(wrapper.text()).toContain('Este ticket histórico no tiene análisis del modelo')
   })
 })

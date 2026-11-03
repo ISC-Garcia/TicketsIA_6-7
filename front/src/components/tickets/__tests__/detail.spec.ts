@@ -3,14 +3,14 @@ import { mount } from '@vue/test-utils'
 
 import { tickets } from '@/mocks/tickets'
 import type { AuditEvent } from '@/types/event'
-import type { Ticket } from '@/types/ticket'
+import type { DemoTicket } from '@/mocks/tickets'
 
 import ChangeComparison from '../ChangeComparison.vue'
 import TicketAnalysis from '../TicketAnalysis.vue'
 import TicketSummary from '../TicketSummary.vue'
 import TicketTimeline from '../TicketTimeline.vue'
 
-const ticketById = (id: string) => tickets.find((ticket) => ticket.id === id) as Ticket
+const ticketById = (id: string) => tickets.find((ticket) => ticket.id === id) as DemoTicket
 
 describe('ChangeComparison', () => {
   const change = { field: 'Tiempo de resolución', oldValue: '10.25 h', newValue: '2.00 h' }

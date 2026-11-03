@@ -4,12 +4,15 @@ import { setUnauthorizedHandler } from '@/services/http'
 import { useSessionStore } from '@/stores/session'
 
 import { resolveAccess } from './guards'
+import { trackVisits } from './lastVisited'
 import { routes } from './routes'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
 })
+
+trackVisits(router)
 
 let sessionChecked = false
 

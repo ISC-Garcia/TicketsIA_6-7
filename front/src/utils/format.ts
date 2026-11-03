@@ -26,4 +26,5 @@ export function formatMinutes(minutes: number): string {
   return `${days} d`
 }
 
-export const formatTicketCount = (count: number) => (count === 1 ? '1 ticket' : `${count} tickets`)
+export const formatTicketCount = (count: number) =>
+  count === 1 ? '1 ticket' : `${count.toLocaleString('es-MX')} tickets`
