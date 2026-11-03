@@ -257,3 +257,8 @@ dist-ssr
 
 # Vitest
 __screenshots__/
+
+# Playwright
+front/test-results/
+front/playwright-report/
+front/blob-report/
