@@ -7,13 +7,14 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, text
+from sqlalchemy import Engine, delete, text
 from sqlalchemy.orm import Session
 
 from app.config import BACK_DIR, Settings
 from app.db import get_engine
 from app.main import create_app
 from app.ml.train import MODEL_FILE, run
+from app.models import DatabaseSample
 from app.seeds import clear
 from app.seeds.demo import DEMO_PASSWORD, seed_demo
 
@@ -36,6 +37,8 @@ def settings(tmp_path_factory: pytest.TempPathFactory) -> Settings:
             "app_env": "test",
             "database_url": base.test_database_url,
             "app_now": NOW,
+            # Las pruebas toman sus muestras a mano.
+            "monitor_interval_minutes": 0,
             "data_dir": data_dir,
             "model_path": None,
         }
@@ -68,6 +71,7 @@ def migrated(settings: Settings) -> Engine:
 def db(migrated: Engine) -> Iterator[Session]:
     with Session(migrated) as session:
         clear(session)
+        session.execute(delete(DatabaseSample))
         session.commit()
         yield session
 

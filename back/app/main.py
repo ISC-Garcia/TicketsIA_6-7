@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -5,12 +6,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, get_settings
+from app.db import get_engine
 from app.errors import install_error_handlers
 from app.ml.model import load_model
 from app.routers import (
     attention,
     auth,
     dashboard,
+    database,
     events,
     health,
     model,
@@ -18,6 +21,7 @@ from app.routers import (
     tickets,
     users,
 )
+from app.services.monitoring import sample_forever
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -27,7 +31,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # El modelo se carga una sola vez; si falta, la API arranca y lo informa.
         app.state.model = load_model(settings.model_file)
+        sampler = None
+        if settings.monitor_interval_minutes:
+            engine = get_engine(settings.database_url)
+            sampler = asyncio.create_task(
+                sample_forever(engine, settings.zone, settings.monitor_interval_minutes)
+            )
         yield
+        if sampler:
+            sampler.cancel()
 
     app = FastAPI(
         title="Sistema de Tickets de Soporte Técnico",
@@ -50,6 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(dashboard.router)
     app.include_router(users.router)
     app.include_router(events.router)
+    app.include_router(database.router)
     if settings.app_env == "test":
         app.include_router(testing.router)
     return app

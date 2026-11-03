@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     # Firma de los tokens de sesión. Sin valor por omisión, igual que la conexión.
     jwt_secret: str = Field(min_length=32)
     session_hours: int = 8
+    # Cada cuántos minutos se guarda una muestra de PostgreSQL. Con 0 no se guardan.
+    monitor_interval_minutes: int = Field(default=5, ge=0)
 
     @field_validator("database_url", "test_database_url")
     @classmethod
