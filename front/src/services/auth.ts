@@ -1,23 +1,32 @@
-import { users } from '@/mocks/users'
 import type { User } from '@/types/user'
 
-import { mockRequest, ServiceError } from './mockRequest'
+import { request, ServiceError } from './http'
 
-const SIMULATED_PASSWORD = 'demo2026'
+const UNAUTHORIZED = 401
 
 export class AuthError extends ServiceError {
-  constructor() {
-    super('Usuario o contraseña incorrectos.')
+  constructor(message = 'Usuario o contraseña incorrectos.') {
+    super(message, UNAUTHORIZED)
   }
 }
 
-// Una cuenta desactivada recibe el mismo error para no revelar qué usuarios existen.
-export function login(username: string, password: string): Promise<User> {
-  const normalized = username.trim().toLowerCase()
+interface LoginResponse {
+  token: string
+  user: User
+}
 
-  return mockRequest(() => {
-    const user = users.find((candidate) => candidate.username === normalized)
-    if (!user?.active || password !== SIMULATED_PASSWORD) throw new AuthError()
+// Una cuenta desactivada recibe el mismo error para no revelar qué usuarios existen.
+export async function login(username: string, password: string): Promise<User> {
+  try {
+    const { user } = await request<LoginResponse>('/api/auth/login', {
+      method: 'POST',
+      body: { username: username.trim().toLowerCase(), password },
+    })
     return user
-  })
+  } catch (error) {
+    if (error instanceof ServiceError && error.status === UNAUTHORIZED) {
+      throw new AuthError(error.message)
+    }
+    throw error
+  }
 }

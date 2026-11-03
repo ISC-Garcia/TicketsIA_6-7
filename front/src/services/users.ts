@@ -1,8 +1,7 @@
-import { users } from '@/mocks/users'
 import type { User } from '@/types/user'
 
-import { mockRequest } from './mockRequest'
+import { request } from './http'
 
 export function listUsers(): Promise<User[]> {
-  return mockRequest(() => users)
+  return request('/api/users')
 }

@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { h } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
-import { setMockFailure } from '@/services/mockRequest'
+import { setMockFailure } from '@/mocks/handlers'
 
 import LoginView from '../LoginView.vue'
 

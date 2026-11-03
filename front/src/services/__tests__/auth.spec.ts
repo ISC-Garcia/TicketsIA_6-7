@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { setMockFailure } from '@/mocks/handlers'
 import { users } from '@/mocks/users'
 
 import { AuthError, login } from '../auth'
-import { ServiceError, setMockFailure } from '../mockRequest'
+import { ServiceError } from '../http'
 
 describe('login', () => {
   afterEach(() => {

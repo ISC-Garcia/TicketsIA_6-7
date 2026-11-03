@@ -15,4 +15,10 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    // En desarrollo el front llama a /api en su mismo origen y Vite lo reenvía al back.
+    proxy: {
+      '/api': process.env.API_PROXY ?? 'http://localhost:8000',
+    },
+  },
 })

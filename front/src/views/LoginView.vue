@@ -8,7 +8,7 @@ import BaseInput from '@/components/ui/BaseInput.vue'
 import FormField from '@/components/ui/FormField.vue'
 import { ICONS } from '@/constants/icons'
 import { ROLE_HOME } from '@/router/routes'
-import { ServiceError } from '@/services/mockRequest'
+import { ServiceError } from '@/services/http'
 import { useSessionStore } from '@/stores/session'
 
 const DEMO_PASSWORD = 'demo2026'
