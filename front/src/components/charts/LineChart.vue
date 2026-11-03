@@ -151,7 +151,8 @@ const summary = computed(() => {
   position: absolute;
   right: 100%;
   margin-right: 8px;
-  color: var(--color-text-subtle);
+  /* Gris con contraste AA sobre blanco: las cifras del eje también se leen. */
+  color: var(--color-text-muted);
   font-size: var(--font-size-11);
   font-variant-numeric: tabular-nums;
   transform: translateY(-50%);

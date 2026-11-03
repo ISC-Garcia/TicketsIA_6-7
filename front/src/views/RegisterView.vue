@@ -173,17 +173,18 @@ onBeforeUnmount(() => clearTimeout(stepTimer))
     </header>
 
     <div v-if="stage !== 'result'" class="register__capture">
-      <dl class="register__generated">
-        <div>
+      <!-- Cada dato es su propia lista: la nota final no puede vivir dentro de un <dl>. -->
+      <div class="register__generated">
+        <dl>
           <dt class="register__label">ID</dt>
           <dd class="register__pending">Se asigna al confirmar</dd>
-        </div>
-        <div>
+        </dl>
+        <dl>
           <dt class="register__label">Fecha de registro</dt>
           <dd class="register__date">{{ registeredAt }}</dd>
-        </div>
-        <div class="register__auto">Generados automáticamente</div>
-      </dl>
+        </dl>
+        <p class="register__auto">Generados automáticamente</p>
+      </div>
 
       <form class="register__form" novalidate @submit.prevent="analyze">
         <FormField
@@ -386,6 +387,11 @@ onBeforeUnmount(() => clearTimeout(stepTimer))
   gap: 40px;
   margin: 0;
   padding: 0 2px;
+}
+
+.register__generated dl,
+.register__auto {
+  margin: 0;
 }
 
 .register__generated dd {

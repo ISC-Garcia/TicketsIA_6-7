@@ -1,14 +1,30 @@
 <script setup lang="ts">
+import { onMounted, useTemplateRef, watch } from 'vue'
+
 import BaseIcon from '@/components/ui/BaseIcon.vue'
 import { ICONS } from '@/constants/icons'
 import { useToastStore } from '@/stores/toast'
 
 const toast = useToastStore()
+const region = useTemplateRef<HTMLElement>('region')
+
+// Los diálogos modales viven en la capa superior del navegador y taparían el aviso. La región
+// es un popover manual que se vuelve a mostrar con cada aviso: así queda encima del último
+// diálogo abierto. jsdom y navegadores viejos no tienen popover; ahí queda como antes.
+function bringToFront() {
+  const element = region.value
+  if (!element || typeof element.showPopover !== 'function') return
+  if (element.matches(':popover-open')) element.hidePopover()
+  element.showPopover()
+}
+
+onMounted(bringToFront)
+watch(() => toast.current?.id, bringToFront, { flush: 'post' })
 </script>
 
 <template>
   <!-- La región existe siempre: si apareciera junto con el texto, algunos lectores no lo anuncian. -->
-  <div class="toast-region" role="status" aria-live="polite">
+  <div ref="region" class="toast-region" role="status" aria-live="polite" popover="manual">
     <div v-if="toast.current" :key="toast.current.id" class="toast">
       <div class="toast__text">
         <p class="toast__message">{{ toast.current.message }}</p>
@@ -29,9 +45,18 @@ const toast = useToastStore()
 <style scoped>
 .toast-region {
   position: fixed;
-  right: 24px;
-  bottom: 24px;
+  inset: auto 24px 24px auto;
   z-index: 70;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  background: none;
+  border: none;
+}
+
+/* Sin abrirse como popover (jsdom o navegadores sin soporte) la región se sigue viendo. */
+.toast-region:not(:popover-open) {
+  display: block;
 }
 
 .toast {

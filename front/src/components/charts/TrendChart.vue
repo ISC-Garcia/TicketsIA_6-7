@@ -101,7 +101,8 @@ const summary = computed(() =>
   width: 40px;
   transform: translateY(-50%);
   text-align: right;
-  color: var(--color-text-subtle);
+  /* Gris con contraste AA sobre blanco: las cifras del eje también se leen. */
+  color: var(--color-text-muted);
   font-size: var(--font-size-11);
   font-variant-numeric: tabular-nums;
 }
