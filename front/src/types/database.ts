@@ -1,26 +1,36 @@
 export interface TableColumn {
   name: string
+  // Tipo de PostgreSQL, como "character varying(10)".
   type: string
-  description: string
+  description?: string
 }
 
+// Las descripciones son los COMMENT ON de la base.
 export interface DatabaseTable {
   name: string
+  description?: string
   rows: number
-  size: string
-  modifiedAt: string
-  description: string
+  sizeBytes: number
+  // Fecha de su dato más reciente; falta si la tabla está vacía.
+  modifiedAt?: string
   columns: TableColumn[]
 }
 
 export interface Backup {
-  date: string
-  size: string
-  duration: string
+  id: number
+  startedAt: string
+  durationSeconds: number
   status: 'Exitoso' | 'Fallido'
+  fileName: string
+  sizeBytes?: number
+  sha256?: string
   detail?: string
-  isRetry?: boolean
+  // El respaldo fallido que este reintento repite.
+  retryOfId?: number
 }
+
+export const MONITOR_TABS = ['estado', 'tablas', 'respaldos'] as const
+export type MonitorTab = (typeof MONITOR_TABS)[number]
 
 export const MONITOR_PERIODS = ['24h', 'semana', 'mes'] as const
 export type MonitorPeriod = (typeof MONITOR_PERIODS)[number]

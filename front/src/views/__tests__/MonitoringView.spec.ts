@@ -7,7 +7,13 @@ import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 import { databaseStatus } from '@/mocks/database'
 import { setMockFailure } from '@/mocks/handlers'
 import { server } from '@/mocks/server'
-import { MONITOR_PERIODS, type DatabaseStatus, type MonitorPeriod } from '@/types/database'
+import {
+  MONITOR_PERIODS,
+  MONITOR_TABS,
+  type DatabaseStatus,
+  type MonitorPeriod,
+  type MonitorTab,
+} from '@/types/database'
 
 import MonitoringView from '../MonitoringView.vue'
 
@@ -23,10 +29,11 @@ async function mountMonitoring(path = '/monitoreo') {
     history: createMemoryHistory(),
     routes: [
       {
-        path: '/monitoreo',
+        path: '/monitoreo/:tab?',
         name: 'monitoreo',
         component: MonitoringView,
         props: (route) => ({
+          tab: MONITOR_TABS.find((tab) => tab === route.params.tab) ?? ('estado' as MonitorTab),
           period:
             MONITOR_PERIODS.find((period) => period === route.query.periodo) ??
             ('24h' as MonitorPeriod),
@@ -54,7 +61,7 @@ const withStatus = (status: DatabaseStatus) =>
   server.use(http.get('*/api/database/status', () => HttpResponse.json(status)))
 
 describe('MonitoringView', () => {
-  it('E9-03: muestra los 7 indicadores de PostgreSQL', async () => {
+  it('E9-03: muestra los indicadores de PostgreSQL y el último respaldo', async () => {
     const { wrapper } = await mountMonitoring()
 
     expect(indicators(wrapper)).toEqual({
@@ -65,6 +72,7 @@ describe('MonitoringView', () => {
       'Consultas por minuto': '142',
       'Tamaño de la base de datos': '486 MB',
       'Aciertos de caché': '99.4 %',
+      'Último respaldo': '2026-10-28 10:18 · Exitoso',
     })
     expect(wrapper.find('.monitor__dot--online').exists()).toBe(true)
     expect(wrapper.find('.monitor__checked').text()).toBe('Actualizado a las 11:42:10')
@@ -208,5 +216,46 @@ describe('MonitoringView', () => {
     const { wrapper } = await mountMonitoring()
 
     expect(wrapper.text()).toMatch(/No se pudo/)
+  })
+
+  it('E9-04: sin respaldos recientes lo dice en el indicador', async () => {
+    server.use(http.get('*/api/database/backups', () => HttpResponse.json([])))
+    const { wrapper } = await mountMonitoring()
+
+    expect(indicators(wrapper)['Último respaldo']).toBe('Sin respaldos en 7 días')
+  })
+
+  it('E9-04: cada pestaña cambia la URL, consulta lo suyo y oculta el periodo', async () => {
+    const { wrapper, router } = await mountMonitoring()
+
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click')
+    await settle()
+    expect(router.currentRoute.value.fullPath).toBe('/monitoreo/tablas')
+    expect(wrapper.find('.tables').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Periodo"]').exists()).toBe(false)
+    expect(wrapper.find('.monitor__checked').exists()).toBe(false)
+
+    await wrapper.findAll('[role="tab"]')[2]!.trigger('click')
+    await settle()
+    expect(router.currentRoute.value.fullPath).toBe('/monitoreo/respaldos')
+    expect(wrapper.findAll('.backups tbody tr')).toHaveLength(3)
+
+    await wrapper.findAll('[role="tab"]')[0]!.trigger('click')
+    await settle()
+    expect(router.currentRoute.value.fullPath).toBe('/monitoreo')
+  })
+
+  it('E9-04: la URL abre una pestaña y un error se puede reintentar', async () => {
+    setMockFailure(true)
+    const { wrapper } = await mountMonitoring('/monitoreo/tablas')
+    expect(wrapper.text()).toContain('No se pudo conectar con el servidor.')
+
+    setMockFailure(false)
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Reintentar')!
+      .trigger('click')
+    await settle()
+    expect(wrapper.findAll('.tables__row')).toHaveLength(5)
   })
 })

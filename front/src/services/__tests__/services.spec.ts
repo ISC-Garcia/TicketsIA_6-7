@@ -184,17 +184,17 @@ describe('datos de referencia', () => {
     )
   })
 
-  it('las tablas suman los 486 MB del prototipo', async () => {
+  it('las tablas traen sus filas, tamaño y columnas', async () => {
     const tables = await listTables()
-    const total = tables.reduce((sum, table) => sum + parseFloat(table.size), 0)
 
-    expect(total).toBeCloseTo(486)
+    expect(tables.map((table) => table.name)).toEqual(['tickets', 'events', 'backups'])
+    expect(tables[0]!.columns[0]!.type).toBe('character varying(10)')
   })
 
   it('el respaldo fallido tiene su reintento', async () => {
     const backups = await listBackups()
 
-    expect(backups.filter((backup) => backup.status === 'Fallido')).toHaveLength(1)
-    expect(backups.filter((backup) => backup.isRetry)).toHaveLength(1)
+    const failed = backups.find((backup) => backup.status === 'Fallido')!
+    expect(backups.find((backup) => backup.retryOfId === failed.id)?.status).toBe('Exitoso')
   })
 })

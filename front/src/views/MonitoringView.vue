@@ -3,20 +3,36 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import LineChart from '@/components/charts/LineChart.vue'
+import BackupsTab from '@/components/monitoring/BackupsTab.vue'
+import TablesTab from '@/components/monitoring/TablesTab.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseIcon from '@/components/ui/BaseIcon.vue'
+import BaseTabs from '@/components/ui/BaseTabs.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import { ICONS } from '@/constants/icons'
-import { getDatabaseStatus } from '@/services/database'
+import { getDatabaseStatus, listBackups, listTables } from '@/services/database'
 import { ServiceError } from '@/services/http'
-import type { DatabaseStatus, MonitorPeriod } from '@/types/database'
+import type {
+  Backup,
+  DatabaseStatus,
+  DatabaseTable,
+  MonitorPeriod,
+  MonitorTab,
+} from '@/types/database'
 import { formatNumber, formatPercent } from '@/utils/chart'
 import { formatBytes, formatUptime } from '@/utils/format'
 
 const props = defineProps<{
+  tab: MonitorTab
   period: MonitorPeriod
 }>()
+
+const TABS = [
+  { key: 'estado', label: 'Estado general' },
+  { key: 'tablas', label: 'Tablas' },
+  { key: 'respaldos', label: 'Respaldos' },
+] as const
 
 const PERIODS = [
   { key: '24h', label: 'Últimas 24 horas' },
@@ -27,17 +43,34 @@ const PERIODS = [
 const router = useRouter()
 
 const status = ref<DatabaseStatus | null>(null)
+const tables = ref<DatabaseTable[] | null>(null)
+const backups = ref<Backup[] | null>(null)
 const loading = ref(true)
 const error = ref('')
 let lastRequest = 0
+
+// Cada pestaña consulta lo suyo. El estado general también trae los respaldos para el
+// indicador "Último respaldo".
+async function fetchTab() {
+  if (props.tab === 'tablas') {
+    tables.value = await listTables()
+    return
+  }
+  if (props.tab === 'respaldos') {
+    backups.value = await listBackups()
+    return
+  }
+  const [current, recent] = await Promise.all([getDatabaseStatus(props.period), listBackups()])
+  status.value = current
+  backups.value = recent
+}
 
 async function load() {
   const request = ++lastRequest
   loading.value = true
   error.value = ''
   try {
-    const result = await getDatabaseStatus(props.period)
-    if (request === lastRequest) status.value = result
+    await fetchTab()
   } catch (cause) {
     if (request !== lastRequest) return
     error.value = cause instanceof ServiceError ? cause.message : 'No se pudo consultar PostgreSQL.'
@@ -46,12 +79,28 @@ async function load() {
   }
 }
 
-watch(() => props.period, load, { immediate: true })
+watch(() => [props.tab, props.period], load, { immediate: true })
+
+const tab = computed({
+  get: () => props.tab,
+  set: (value: MonitorTab) =>
+    router.replace({ name: 'monitoreo', params: value === 'estado' ? {} : { tab: value } }),
+})
 
 const period = computed({
   get: () => props.period,
   set: (value: MonitorPeriod) =>
     router.replace({ query: value === '24h' ? {} : { periodo: value } }),
+})
+
+const loaded = computed(
+  () =>
+    ({ estado: status.value, tablas: tables.value, respaldos: backups.value })[props.tab] !== null,
+)
+
+const lastBackup = computed(() => {
+  const latest = backups.value?.[0]
+  return latest ? `${latest.startedAt.slice(0, 16)} · ${latest.status}` : 'Sin respaldos en 7 días'
 })
 
 const DASH = '—'
@@ -99,6 +148,7 @@ const indicators = computed(() => {
       label: 'Aciertos de caché',
       value: current.cacheHitRatio === undefined ? DASH : formatPercent(current.cacheHitRatio),
     },
+    { label: 'Último respaldo', value: lastBackup.value, small: true },
   ]
 })
 
@@ -115,105 +165,120 @@ const checkedAt = computed(() =>
         <p class="monitor__subtitle">Estado real del servidor PostgreSQL que usa el sistema.</p>
       </div>
       <div class="monitor__controls">
-        <span class="monitor__checked" aria-live="polite">
+        <span v-if="tab === 'estado'" class="monitor__checked" aria-live="polite">
           {{ loading ? 'Actualizando…' : checkedAt }}
         </span>
         <BaseButton variant="secondary" size="sm" :disabled="loading" @click="load">
           <BaseIcon :path="ICONS.refresh" :size="16" />
           Actualizar
         </BaseButton>
-        <SegmentedControl v-model="period" :options="PERIODS" label="Periodo" size="sm" />
+        <SegmentedControl
+          v-if="tab === 'estado'"
+          v-model="period"
+          :options="PERIODS"
+          label="Periodo"
+          size="sm"
+        />
       </div>
     </header>
 
-    <EmptyState
-      v-if="error && !status"
-      class="monitor__card monitor__state"
-      :title="error"
-      action-label="Reintentar"
-      @action="load"
-    />
-    <p v-else-if="!status" class="monitor__card monitor__state">Consultando PostgreSQL…</p>
-    <template v-else>
-      <p v-if="error" class="monitor__error" role="alert">{{ error }}</p>
-      <section class="monitor__indicators" aria-label="Indicadores">
-        <article
-          v-for="item in indicators"
-          :key="item.label"
-          class="monitor__card monitor__indicator"
-        >
-          <h2 class="monitor__indicator-label">{{ item.label }}</h2>
-          <p class="monitor__indicator-value">
-            <span
-              v-if="item.state"
-              class="monitor__dot"
-              :class="`monitor__dot--${item.state}`"
-              aria-hidden="true"
-            />
-            {{ item.value }}
-          </p>
-          <p v-if="item.note" class="monitor__note">{{ item.note }}</p>
-        </article>
-      </section>
+    <BaseTabs v-model="tab" :tabs="TABS" label="Monitoreo de base de datos">
+      <EmptyState
+        v-if="error && !loaded"
+        class="monitor__card monitor__state"
+        :title="error"
+        action-label="Reintentar"
+        @action="load"
+      />
+      <p v-else-if="!loaded" class="monitor__card monitor__state">Consultando PostgreSQL…</p>
+      <template v-else>
+        <p v-if="error" class="monitor__error" role="alert">{{ error }}</p>
+        <TablesTab v-if="tab === 'tablas' && tables" :tables="tables" />
+        <BackupsTab v-else-if="tab === 'respaldos' && backups" :backups="backups" />
+        <template v-else-if="status">
+          <section class="monitor__indicators" aria-label="Indicadores">
+            <article
+              v-for="item in indicators"
+              :key="item.label"
+              class="monitor__card monitor__indicator"
+            >
+              <h2 class="monitor__indicator-label">{{ item.label }}</h2>
+              <p
+                class="monitor__indicator-value"
+                :class="{ 'monitor__indicator-value--small': item.small }"
+              >
+                <span
+                  v-if="item.state"
+                  class="monitor__dot"
+                  :class="`monitor__dot--${item.state}`"
+                  aria-hidden="true"
+                />
+                {{ item.value }}
+              </p>
+              <p v-if="item.note" class="monitor__note">{{ item.note }}</p>
+            </article>
+          </section>
 
-      <div v-if="status.trend" class="monitor__charts">
-        <section class="monitor__card monitor__chart" aria-labelledby="chart-queries">
-          <h2 id="chart-queries" class="monitor__chart-title">Consultas por hora</h2>
-          <p class="monitor__chart-subtitle">{{ status.trend.subtitle }}</p>
-          <LineChart
-            :labels="status.trend.labels"
-            :values="status.trend.queriesPerHour"
-            name="Consultas por hora"
-          />
-        </section>
-        <section class="monitor__card monitor__chart" aria-labelledby="chart-connections">
-          <h2 id="chart-connections" class="monitor__chart-title">Conexiones activas</h2>
-          <p class="monitor__chart-subtitle">{{ status.trend.subtitle }}, promedio</p>
-          <LineChart
-            :labels="status.trend.labels"
-            :values="status.trend.connections"
-            name="Conexiones activas"
-            tone="light"
-          />
-        </section>
-      </div>
+          <div v-if="status.trend" class="monitor__charts">
+            <section class="monitor__card monitor__chart" aria-labelledby="chart-queries">
+              <h2 id="chart-queries" class="monitor__chart-title">Consultas por hora</h2>
+              <p class="monitor__chart-subtitle">{{ status.trend.subtitle }}</p>
+              <LineChart
+                :labels="status.trend.labels"
+                :values="status.trend.queriesPerHour"
+                name="Consultas por hora"
+              />
+            </section>
+            <section class="monitor__card monitor__chart" aria-labelledby="chart-connections">
+              <h2 id="chart-connections" class="monitor__chart-title">Conexiones activas</h2>
+              <p class="monitor__chart-subtitle">{{ status.trend.subtitle }}, promedio</p>
+              <LineChart
+                :labels="status.trend.labels"
+                :values="status.trend.connections"
+                name="Conexiones activas"
+                tone="light"
+              />
+            </section>
+          </div>
 
-      <section
-        v-if="status.slowQueries"
-        class="monitor__card monitor__slow"
-        aria-labelledby="slow-title"
-      >
-        <header class="monitor__slow-header">
-          <h2 id="slow-title" class="monitor__chart-title">Consultas más lentas</h2>
-          <p class="monitor__chart-subtitle">
-            Desde que se reinició el registro de PostgreSQL, ordenadas por tiempo promedio
-          </p>
-        </header>
-        <p v-if="!status.slowQueries.available" class="monitor__slow-empty">
-          La extensión pg_stat_statements no está activa en el servidor, así que no hay registro de
-          consultas lentas.
-        </p>
-        <p v-else-if="!status.slowQueries.items.length" class="monitor__slow-empty">
-          Aún no hay consultas registradas.
-        </p>
-        <table v-else class="monitor__table">
-          <thead>
-            <tr>
-              <th scope="col">Consulta</th>
-              <th scope="col" class="monitor__number">Tiempo promedio</th>
-              <th scope="col" class="monitor__number">Ejecuciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in status.slowQueries.items" :key="item.query">
-              <td class="monitor__query" :title="item.query">{{ item.query }}</td>
-              <td class="monitor__number monitor__strong">{{ item.meanMs.toFixed(1) }} ms</td>
-              <td class="monitor__number monitor__muted">{{ formatNumber(item.calls) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-    </template>
+          <section
+            v-if="status.slowQueries"
+            class="monitor__card monitor__slow"
+            aria-labelledby="slow-title"
+          >
+            <header class="monitor__slow-header">
+              <h2 id="slow-title" class="monitor__chart-title">Consultas más lentas</h2>
+              <p class="monitor__chart-subtitle">
+                Desde que se reinició el registro de PostgreSQL, ordenadas por tiempo promedio
+              </p>
+            </header>
+            <p v-if="!status.slowQueries.available" class="monitor__slow-empty">
+              La extensión pg_stat_statements no está activa en el servidor, así que no hay registro
+              de consultas lentas.
+            </p>
+            <p v-else-if="!status.slowQueries.items.length" class="monitor__slow-empty">
+              Aún no hay consultas registradas.
+            </p>
+            <table v-else class="monitor__table">
+              <thead>
+                <tr>
+                  <th scope="col">Consulta</th>
+                  <th scope="col" class="monitor__number">Tiempo promedio</th>
+                  <th scope="col" class="monitor__number">Ejecuciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in status.slowQueries.items" :key="item.query">
+                  <td class="monitor__query" :title="item.query">{{ item.query }}</td>
+                  <td class="monitor__number monitor__strong">{{ item.meanMs.toFixed(1) }} ms</td>
+                  <td class="monitor__number monitor__muted">{{ formatNumber(item.calls) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </template>
+      </template>
+    </BaseTabs>
   </div>
 </template>
 
@@ -298,6 +363,12 @@ const checkedAt = computed(() =>
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.02em;
   line-height: 1.15;
+}
+
+.monitor__indicator-value--small {
+  font-size: var(--font-size-17);
+  letter-spacing: 0;
+  line-height: 1.6;
 }
 
 .monitor__dot {
