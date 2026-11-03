@@ -36,6 +36,8 @@ class TicketOut(ApiModel):
     reporter: str
     # Los tickets históricos del dataset no tienen técnico ni análisis.
     technician: str | None = None
+    # Para que el front sepa si el ticket es de quien tiene la sesión.
+    technician_username: str | None = None
     summary: str
     description: str
     highlights: list[str]
@@ -70,6 +72,7 @@ def ticket_out(ticket: Ticket, settings: Settings) -> TicketOut:
         created_at=settings.local(ticket.created_at, seconds=False),
         reporter=ticket.reporter,
         technician=ticket.technician.name if ticket.technician else None,
+        technician_username=ticket.technician_username,
         summary=ticket.summary,
         description=ticket.description,
         highlights=ticket.highlights,

@@ -130,6 +130,7 @@ def test_e2_01_devuelve_el_contrato_del_front(client: TestClient, tecnico: dict[
         "createdAt": "2026-10-28 09:57",
         "reporter": "Mariana López Ruiz",
         "technician": "Roberto García Hernández",
+        "technicianUsername": "tecnico",
         "summary": "Servidor principal apagado sin acceso a la base de datos",
         "description": (
             "El servidor principal se apagó y nadie tiene acceso a la base de datos de "

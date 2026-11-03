@@ -12,6 +12,9 @@ def record_event(
     type: str,
     ticket_id: str | None = None,
     detail: str | None = None,
+    solution: str | None = None,
+    changes: list[dict[str, str]] | None = None,
+    after_close: bool = False,
 ) -> Event:
     """Agrega un evento a la bitácora. Quien llama decide cuándo confirmar la transacción."""
     event = Event(
@@ -20,6 +23,9 @@ def record_event(
         type=type,
         ticket_id=ticket_id,
         detail=detail,
+        solution=solution,
+        changes=changes,
+        after_close=after_close,
     )
     db.add(event)
     return event
