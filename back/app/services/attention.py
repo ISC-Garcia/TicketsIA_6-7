@@ -117,3 +117,59 @@ def assign(
         detail=f"{previous} a {technician.name}",
     )
     db.commit()
+
+
+def format_hours(hours: float | None) -> str:
+    return f"{hours:.2f} h" if hours is not None else "sin registro"
+
+
+def correct_resolution(
+    db: Session,
+    settings: Settings,
+    ticket: Ticket,
+    user: User,
+    solution: str | None,
+    hours: float | None,
+) -> None:
+    """Corrige la solución o las horas de un ticket resuelto (P-3, P-8).
+
+    Queda como "Edición de datos" posterior al cierre, que es lo que revisa el auditor.
+    """
+    if ticket.status != RESOLVED:
+        raise conflict("Solo se puede corregir la resolución de un ticket resuelto.")
+    if ticket.resolved_by_username != user.username:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="Solo quien resolvió el ticket puede corregir su resolución.",
+        )
+
+    changes: list[dict[str, str]] = []
+    details: list[str] = []
+    if hours is not None and round(hours, 2) != round(ticket.resolution_hours or 0, 2):
+        old, new = format_hours(ticket.resolution_hours), format_hours(hours)
+        changes.append({"field": "Tiempo de resolución", "oldValue": old, "newValue": new})
+        details.append(f"tiempo de resolución {old} a {new}")
+        ticket.resolution_hours = hours
+    if solution is not None and solution != (ticket.solution or ""):
+        changes.append(
+            {"field": "Solución aplicada", "oldValue": ticket.solution or "", "newValue": solution}
+        )
+        details.append("solución aplicada")
+        ticket.solution = solution
+    if not changes:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, detail="No hay cambios que guardar."
+        )
+
+    ticket.edited_after_close = True
+    record_event(
+        db,
+        settings,
+        user_name=user.name,
+        type="Edición de datos",
+        ticket_id=ticket.id,
+        detail="; ".join(details),
+        changes=changes,
+        after_close=True,
+    )
+    db.commit()

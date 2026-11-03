@@ -25,6 +25,14 @@ class Resolution(ApiModel):
     resolution_hours: float = Field(gt=0, le=10_000)
 
 
+class Correction(ApiModel):
+    solution: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=10, max_length=2000)]
+        | None
+    ) = None
+    resolution_hours: float | None = Field(default=None, gt=0, le=10_000)
+
+
 class Assignment(ApiModel):
     technician: str = Field(min_length=1, max_length=50)
 
@@ -62,6 +70,15 @@ def resolve(
 ) -> TicketOut:
     ticket = load(db, ticket_id)
     attention.resolve(db, settings, ticket, user, body.solution, body.resolution_hours)
+    return updated(db, settings, ticket)
+
+
+@router.patch("/api/tickets/{ticket_id}/resolution", response_model_exclude_none=True)
+def correct_resolution(
+    ticket_id: str, body: Correction, user: TechnicianUser, db: DbDep, settings: SettingsDep
+) -> TicketOut:
+    ticket = load(db, ticket_id)
+    attention.correct_resolution(db, settings, ticket, user, body.solution, body.resolution_hours)
     return updated(db, settings, ticket)
 
 
