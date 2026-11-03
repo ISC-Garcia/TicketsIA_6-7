@@ -1,9 +1,8 @@
-import type { AuditEvent, EventQuery } from '@/types/event'
-import type { Page } from '@/types/page'
+import type { AuditEvent, EventPage, EventQuery } from '@/types/event'
 
 import { request } from './http'
 
-export function listEvents(query: EventQuery = {}): Promise<Page<AuditEvent>> {
+export function listEvents(query: EventQuery = {}): Promise<EventPage> {
   return request('/api/events', { query: { ...query } })
 }
 

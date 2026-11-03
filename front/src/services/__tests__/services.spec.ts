@@ -126,12 +126,27 @@ describe('listEvents', () => {
     expect(items[0]?.time).toBe('2026-10-28 10:14:08')
   })
 
+  it('trae el conteo de ediciones posteriores al cierre y los usuarios sin importar los filtros', async () => {
+    const page = await listEvents({ type: 'Cierre de sesión' })
+
+    expect(page.afterCloseTotal).toBe(1)
+    expect(page.users).toEqual([
+      'Francisco Alejandro Parra Huerta',
+      'Luis Daniel Morales Villarauz',
+      'Roberto García Hernández',
+      'Sarely Xala Hernández',
+      'Sistema',
+    ])
+  })
+
   it.each([
     [{ type: 'Reasignación' }, 1],
     [{ user: 'Sistema' }, 9],
     [{ date: 'hoy' }, 15],
     [{ date: '7' }, 27],
     [{ ticketId: ' tck-115796 ' }, 5],
+    // El ID es exacto, como en la API (B-13).
+    [{ ticketId: 'TCK-1' }, 0],
     [{ afterClose: true }, 1],
   ])('filtra con %o', async (query, expected) => {
     expect((await listEvents(query as object)).total).toBe(expected)

@@ -249,6 +249,7 @@ Las pruebas usan `TEST_DATABASE_URL`: borran esa base y la migran desde cero al 
 | `GET` | `/api/users` | Coordinador | Usuarios con su rol y estado |
 | `POST` | `/api/users` | Coordinador | Crea un usuario (`name`, `username` con `^[a-z0-9._]{3,}$`, `role`, `password` temporal de 8 caracteres o más) |
 | `PATCH` | `/api/users/{username}` | Coordinador | Activa o desactiva una cuenta (`active`); nadie se desactiva a sí mismo |
+| `GET` | `/api/events` | Auditor | Bitácora del más reciente al más antiguo, de 10 en 10. Filtra por `type`, `user`, `date` (`hoy` o `7`), `ticketId` exacto y `afterClose`. Trae además `afterCloseTotal` y los `users` que aparecen en ella |
 
 Las respuestas usan los nombres de campo de `front/src/types/` y las fechas en hora local de la mesa de ayuda (`TIMEZONE`), sin zona, como `2026-10-28 09:57`. Los tickets históricos no traen `technician` ni `analysis`.
 

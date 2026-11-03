@@ -1,3 +1,5 @@
+import type { Page } from './page'
+
 export const EVENT_TYPES = [
   'Ticket creado',
   'Clasificado por IA',
@@ -29,7 +31,8 @@ export interface AuditEvent {
   solution?: string
 }
 
-export type EventDateFilter = 'hoy' | '7'
+export const EVENT_DATE_FILTERS = ['hoy', '7'] as const
+export type EventDateFilter = (typeof EVENT_DATE_FILTERS)[number]
 
 export interface EventQuery {
   type?: EventType
@@ -39,4 +42,11 @@ export interface EventQuery {
   afterClose?: boolean
   page?: number
   pageSize?: number
+}
+
+// La página trae también lo que no depende de los filtros: el conteo de ediciones
+// posteriores al cierre y los usuarios que aparecen en la bitácora.
+export interface EventPage extends Page<AuditEvent> {
+  afterCloseTotal: number
+  users: string[]
 }

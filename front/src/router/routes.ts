@@ -2,6 +2,8 @@ import type { RouteRecordRaw } from 'vue-router'
 
 import type { Role } from '@/types/user'
 import { DASHBOARD_PERIODS, type DashboardPeriod } from '@/types/dashboard'
+import { MODEL_TABS, type ModelTab } from '@/types/model'
+import { parseEventFilters } from '@/utils/eventFilters'
 import { parseTicketFilters } from '@/utils/ticketFilters'
 
 declare module 'vue-router' {
@@ -17,6 +19,10 @@ declare module 'vue-router' {
 // Un periodo desconocido en la URL vuelve al de por omisión.
 const parseDashboardPeriod = (value: unknown): DashboardPeriod =>
   DASHBOARD_PERIODS.find((period) => period === value) ?? 'mes'
+
+// Igual con la pestaña del modelo: una desconocida abre Métricas, como dice el breadcrumb.
+const parseModelTab = (value: unknown): ModelTab =>
+  MODEL_TABS.find((tab) => tab === value) ?? 'metricas'
 
 // Vista temporal: cada historia la reemplaza por su pantalla.
 const placeholder = () => import('@/views/PlaceholderView.vue')
@@ -88,7 +94,8 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'modelo/:tab?',
         name: 'modelo',
-        component: placeholder,
+        component: () => import('@/views/ModelView.vue'),
+        props: (route) => ({ tab: parseModelTab(route.params.tab) }),
         meta: {
           roles: ['coordinador'],
           title: 'Rendimiento del modelo',
@@ -119,7 +126,8 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'bitacora',
         name: 'bitacora',
-        component: placeholder,
+        component: () => import('@/views/EventLogView.vue'),
+        props: (route) => ({ filters: parseEventFilters(route.query) }),
         meta: { roles: ['auditor'], title: 'Bitácora de registros' },
       },
       {
