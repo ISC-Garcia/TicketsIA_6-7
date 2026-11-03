@@ -1,4 +1,5 @@
-# PostgreSQL para desarrollo y pruebas. Crea las bases `tickets` y `tickets_test`.
+# PostgreSQL para desarrollo y pruebas. Crea las bases `tickets`, `tickets_test` (pytest)
+# y `tickets_e2e` (Playwright).
 #   docker compose -f back/compose.yaml up -d
 # Las credenciales son solo para esta base local; en producción salen de DATABASE_URL.
 name: tickets

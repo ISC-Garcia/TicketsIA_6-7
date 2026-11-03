@@ -15,6 +15,7 @@ from app.db import get_engine
 from app.main import create_app
 from app.ml.train import run
 from app.seeds import clear
+from app.seeds.demo import DEMO_PASSWORD, seed_demo
 
 SMALL_DATASET = 2000
 NOW = datetime(2026, 10, 28, 11, 42, 10, tzinfo=ZoneInfo("America/Mexico_City"))
@@ -75,3 +76,18 @@ def db(migrated: Engine) -> Iterator[Session]:
 def client(settings: Settings) -> Iterator[TestClient]:
     with TestClient(create_app(settings)) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def demo(db: Session) -> Session:
+    """Base de pruebas con la semilla demo cargada."""
+    seed_demo(db, NOW.tzinfo)  # pyright: ignore[reportArgumentType]
+    return db
+
+
+def auth_headers(
+    client: TestClient, username: str, password: str = DEMO_PASSWORD
+) -> dict[str, str]:
+    response = client.post("/api/auth/login", json={"username": username, "password": password})
+    assert response.status_code == 200, response.text
+    return {"Authorization": f"Bearer {response.json()['token']}"}

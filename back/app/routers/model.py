@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
+from app.auth import current_user
 from app.ml.model import ModelState
 from app.schemas import ApiModel
 
-router = APIRouter(prefix="/api/model", tags=["modelo"])
+# Cualquier rol con sesión puede saber si el modelo está disponible.
+router = APIRouter(prefix="/api/model", tags=["modelo"], dependencies=[Depends(current_user)])
 
 
 class ModelInfo(ApiModel):

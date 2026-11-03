@@ -6,9 +6,11 @@ from pydantic import ValidationError
 
 from app.config import BACK_DIR, Settings
 
+SECRET = "s" * 32
+
 
 def make(**values: object) -> Settings:
-    return Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]
+    return Settings(_env_file=None, **({"jwt_secret": SECRET} | values))  # pyright: ignore[reportCallIssue]
 
 
 def test_e0_01_sin_database_url_no_arranca(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -65,3 +67,10 @@ def test_e0_01_sin_app_now_usa_el_reloj_real_en_la_zona_configurada() -> None:
 def test_e0_01_app_now_exige_zona_horaria() -> None:
     with pytest.raises(ValidationError, match="app_now"):
         make(database_url="postgresql://u:p@h/db", app_now="2026-10-28T11:42:10")
+
+
+def test_e1_01_la_clave_de_sesion_es_obligatoria_y_larga(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+
+    with pytest.raises(ValidationError, match="jwt_secret"):
+        make(database_url="postgresql://u:p@h/db", jwt_secret="corta")

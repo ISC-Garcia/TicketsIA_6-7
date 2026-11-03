@@ -1,34 +1,28 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { paginate, setMockFailure } from '@/mocks/handlers'
+import { minutesSince } from '@/utils/clock'
+
 import { listBackups, listTables } from '../database'
 import { listEvents, listTicketEvents } from '../events'
-import { mockRequest, paginate, ServiceError, setMockFailure } from '../mockRequest'
+import { ServiceError } from '../http'
 import { countTicketsByPriority, getTicket, listTickets } from '../tickets'
 import { listUsers } from '../users'
-import { minutesSince } from '@/utils/clock'
 
 afterEach(() => setMockFailure(false))
 
-describe('mockRequest', () => {
-  it('devuelve copias para que nadie modifique los datos simulados', async () => {
+describe('respuestas simuladas', () => {
+  it('devuelven copias para que nadie modifique los datos simulados', async () => {
     const first = await getTicket('TCK-200003')
     first!.summary = 'Modificado'
 
     expect((await getTicket('TCK-200003'))?.summary).not.toBe('Modificado')
   })
 
-  it('falla a pedido con un error de servicio', async () => {
+  it('fallan a pedido con un error de servicio', async () => {
     setMockFailure(true)
 
     await expect(listTickets()).rejects.toBeInstanceOf(ServiceError)
-  })
-
-  it('convierte en rechazo un error interno', async () => {
-    const failing = mockRequest(() => {
-      throw new Error('falló')
-    })
-
-    await expect(failing).rejects.toThrow('falló')
   })
 })
 

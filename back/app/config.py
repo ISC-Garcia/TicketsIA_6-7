@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends
-from pydantic import AwareDatetime, field_validator
+from pydantic import AwareDatetime, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACK_DIR = Path(__file__).resolve().parent.parent
@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     data_dir: Path = BACK_DIR / "datos"
     model_path: Path | None = None
     cors_origins: list[str] = ["http://localhost:5173"]
+    # Firma de los tokens de sesión. Sin valor por omisión, igual que la conexión.
+    jwt_secret: str = Field(min_length=32)
+    session_hours: int = 8
 
     @field_validator("database_url", "test_database_url")
     @classmethod

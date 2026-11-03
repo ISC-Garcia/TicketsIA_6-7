@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 from sklearn.exceptions import InconsistentVersionWarning
+from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.domain import DEPARTMENTS, PRIORITIES
@@ -16,7 +17,7 @@ from app.ml.cleaning import clean
 from app.ml.dataset import COLUMNS, generate
 from app.ml.model import load_model
 from app.ml.train import CLEAN_FILE, METRICS_FILE, MODEL_FILE, RAW_FILE
-from tests.conftest import SMALL_DATASET
+from tests.conftest import SMALL_DATASET, auth_headers
 
 
 @pytest.fixture(scope="module")
@@ -113,19 +114,21 @@ def test_e0_04_el_comando_usa_la_carpeta_de_la_configuracion(
     assert calls == [(settings.data_dir, 100_000)]
 
 
-def test_e0_04_sin_modelo_la_api_arranca_y_lo_informa(client: TestClient) -> None:
-    body = client.get("/api/model/info").json()
+def test_e0_04_sin_modelo_la_api_arranca_y_lo_informa(client: TestClient, demo: Session) -> None:
+    body = client.get("/api/model/info", headers=auth_headers(client, "coordinador")).json()
 
     assert body["loaded"] is False
     assert "Entrénalo con" in body["error"]
     assert body["accuracy"] is None
 
 
-def test_e0_04_la_api_informa_el_modelo_cargado(settings: Settings, trained: Path) -> None:
+def test_e0_04_la_api_informa_el_modelo_cargado(
+    settings: Settings, trained: Path, demo: Session
+) -> None:
     with_model = settings.model_copy(update={"model_path": trained / MODEL_FILE})
 
     with TestClient(create_app(with_model)) as client:
-        info = client.get("/api/model/info").json()
+        info = client.get("/api/model/info", headers=auth_headers(client, "tecnico")).json()
         health = client.get("/api/health").json()
 
     metrics = json.loads((trained / METRICS_FILE).read_text(encoding="utf-8"))

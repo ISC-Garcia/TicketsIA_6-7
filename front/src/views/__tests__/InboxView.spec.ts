@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { h } from 'vue'
 import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 
-import { setMockFailure } from '@/services/mockRequest'
+import { setMockFailure } from '@/mocks/handlers'
 import { parseTicketFilters } from '@/utils/ticketFilters'
 
 import InboxView from '../InboxView.vue'
