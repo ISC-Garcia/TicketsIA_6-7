@@ -1,5 +1,13 @@
 import type { Page } from '@/types/page'
-import type { DraftAnalysis, Priority, Ticket, TicketDraft, TicketQuery } from '@/types/ticket'
+import type {
+  DraftAnalysis,
+  Priority,
+  Resolution,
+  Technician,
+  Ticket,
+  TicketDraft,
+  TicketQuery,
+} from '@/types/ticket'
 
 import { request, ServiceError } from './http'
 
@@ -32,4 +40,26 @@ export function analyzeTicket(draft: TicketDraft): Promise<DraftAnalysis> {
 // El servidor vuelve a clasificar al guardar: no se envía el análisis que se mostró.
 export function createTicket(draft: TicketDraft): Promise<Ticket> {
   return request('/api/tickets', { method: 'POST', body: draft })
+}
+
+const ticketPath = (id: string, action: string) =>
+  `/api/tickets/${encodeURIComponent(id)}/${action}`
+
+// Solo el técnico asignado: pasa un ticket Abierto a En atención.
+export function attendTicket(id: string): Promise<Ticket> {
+  return request(ticketPath(id, 'attend'), { method: 'POST' })
+}
+
+// Solo el técnico asignado, con el ticket En atención.
+export function resolveTicket(id: string, resolution: Resolution): Promise<Ticket> {
+  return request(ticketPath(id, 'resolve'), { method: 'POST', body: resolution })
+}
+
+export function listTechnicians(): Promise<Technician[]> {
+  return request('/api/technicians')
+}
+
+// Solo el coordinador, mientras el ticket no esté resuelto.
+export function assignTicket(id: string, technician: string): Promise<Ticket> {
+  return request(ticketPath(id, 'assign'), { method: 'POST', body: { technician } })
 }

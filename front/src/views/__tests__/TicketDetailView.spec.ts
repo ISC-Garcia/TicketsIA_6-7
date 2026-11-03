@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { h } from 'vue'
 import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 
@@ -8,6 +9,10 @@ import { http, HttpResponse } from 'msw'
 import { setMockFailure } from '@/mocks/handlers'
 import { server } from '@/mocks/server'
 import { tickets } from '@/mocks/tickets'
+import { users } from '@/mocks/users'
+import { setAuthToken } from '@/services/http'
+import { useSessionStore } from '@/stores/session'
+import { useToastStore } from '@/stores/toast'
 
 import TicketDetailView from '../TicketDetailView.vue'
 
@@ -17,23 +22,52 @@ async function settle() {
   await flushPromises()
 }
 
-async function mountDetail(id: string) {
+// Inicia la sesión simulada: los manejadores de MSW reconocen el token `simulado-<usuario>`.
+function signInAs(username: string) {
+  const session = useSessionStore()
+  session.user = users.find((user) => user.username === username)!
+  setAuthToken(`simulado-${username}`)
+}
+
+async function mountDetail(id: string, username = 'tecnico') {
+  setActivePinia(createPinia())
+  signInAs(username)
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
       { path: '/bandeja', name: 'bandeja', component: { render: () => h('div', 'Bandeja') } },
-      { path: '/bandeja/:id', name: 'bandeja-detalle', component: TicketDetailView, props: true },
+      {
+        path: '/bandeja/:id',
+        name: 'bandeja-detalle',
+        component: TicketDetailView,
+        props: true,
+        meta: { parent: 'bandeja' },
+      },
+      { path: '/general', name: 'general', component: { render: () => h('div', 'General') } },
+      {
+        path: '/general/:id',
+        name: 'general-detalle',
+        component: TicketDetailView,
+        props: true,
+        meta: { parent: 'general' },
+      },
     ],
   })
-  await router.push(`/bandeja/${id}`)
+  await router.push(`/${username === 'coordinador' ? 'general' : 'bandeja'}/${id}`)
 
   const wrapper = mount({ render: () => h(RouterView) }, { global: { plugins: [router] } })
   await settle()
   return { wrapper, router }
 }
 
+const buttonNamed = (wrapper: Awaited<ReturnType<typeof mountDetail>>['wrapper'], name: string) =>
+  wrapper.findAll('button').find((button) => button.text() === name)
+
 describe('TicketDetailView', () => {
-  afterEach(() => setMockFailure(false))
+  afterEach(() => {
+    setMockFailure(false)
+    setAuthToken(null)
+  })
 
   it('muestra el encabezado con ID, prioridad, estado y reporte', async () => {
     const { wrapper } = await mountDetail('TCK-200007')
@@ -132,5 +166,159 @@ describe('TicketDetailView', () => {
     expect(wrapper.find('.summary').text()).toContain('Sin asignar')
     await wrapper.findAll('[role="tab"]')[1]!.trigger('click')
     expect(wrapper.text()).toContain('Este ticket histórico no tiene análisis del modelo')
+  })
+
+  describe('atención', () => {
+    it('E4-02: el técnico asignado atiende un ticket abierto', async () => {
+      const { wrapper } = await mountDetail('TCK-200003')
+
+      await buttonNamed(wrapper, 'Atender')!.trigger('click')
+      await settle()
+
+      expect(wrapper.find('.status').text()).toBe('En atención')
+      expect(buttonNamed(wrapper, 'Atender')).toBeUndefined()
+      expect(buttonNamed(wrapper, 'Marcar como resuelto')).toBeDefined()
+      expect(useToastStore().current).toMatchObject({ message: 'Ticket en atención' })
+    })
+
+    it('E4-02: un ticket de otro técnico dice a quién está asignado', async () => {
+      const { wrapper } = await mountDetail('TCK-200011')
+
+      expect(buttonNamed(wrapper, 'Atender')).toBeUndefined()
+      expect(wrapper.find('.detail__assigned').text()).toBe('Asignado a Sarely Xala Hernández')
+    })
+
+    it('E4-02: si la API rechaza la acción muestra el motivo', async () => {
+      server.use(
+        http.post('*/api/tickets/:id/attend', () =>
+          HttpResponse.json({ detail: 'El ticket ya está en atención.' }, { status: 409 }),
+        ),
+      )
+      const { wrapper } = await mountDetail('TCK-200003')
+
+      await buttonNamed(wrapper, 'Atender')!.trigger('click')
+      await settle()
+
+      expect(wrapper.find('.detail__action-error').text()).toBe('El ticket ya está en atención.')
+    })
+
+    it('E4-05: el coordinador ve el detalle en solo lectura y vuelve a su bandeja', async () => {
+      const { wrapper, router } = await mountDetail('TCK-200003', 'coordinador')
+
+      expect(wrapper.find('.detail__read-only').text()).toBe('Solo lectura')
+      expect(buttonNamed(wrapper, 'Atender')).toBeUndefined()
+      expect(wrapper.find('.detail__actions').exists()).toBe(false)
+
+      await router.push('/general/TCK-000000')
+      await settle()
+      await wrapper.find('.empty button').trigger('click')
+      await settle()
+      expect(router.currentRoute.value.name).toBe('general')
+    })
+
+    it('un ticket resuelto no ofrece acciones', async () => {
+      const { wrapper } = await mountDetail('TCK-115796', 'sxala')
+
+      expect(wrapper.find('.detail__actions').exists()).toBe(false)
+    })
+  })
+
+  describe('E4-03: resolver', () => {
+    async function openResolve() {
+      const mounted = await mountDetail('TCK-200007')
+      await buttonNamed(mounted.wrapper, 'Marcar como resuelto')!.trigger('click')
+      return mounted
+    }
+
+    const lastDialog = (wrapper: Awaited<ReturnType<typeof mountDetail>>['wrapper']) => {
+      const dialogs = wrapper.findAll('dialog')
+      return dialogs[dialogs.length - 1]!
+    }
+
+    const panel = (wrapper: Awaited<ReturnType<typeof mountDetail>>['wrapper']) =>
+      wrapper.findAll('dialog').find((dialog) => dialog.text().includes('Solución aplicada'))!
+
+    it('precalcula las horas desde el registro y valida la captura', async () => {
+      const { wrapper } = await openResolve()
+      const resolve = panel(wrapper)
+
+      expect((resolve.find('input').element as HTMLInputElement).value).toBe('3.17')
+      expect(resolve.text()).toContain('Calculado desde el registro del ticket (08:32)')
+
+      await resolve.find('input').setValue('0')
+      await resolve.find('form').trigger('submit')
+
+      expect(resolve.findAll('[role="alert"]').map((alert) => alert.text())).toEqual([
+        'Describe la solución aplicada (mínimo 10 caracteres).',
+        'Escribe un tiempo válido en horas.',
+      ])
+    })
+
+    it('pide confirmación, guarda y muestra el resultado con el historial', async () => {
+      const { wrapper } = await openResolve()
+      const resolve = panel(wrapper)
+      await resolve.find('textarea').setValue('Se reinició el nodo principal del cluster.')
+      await resolve.find('input').setValue('2,5')
+
+      await resolve.find('form').trigger('submit')
+      const confirm = wrapper
+        .findAll('dialog')
+        .find((dialog) => dialog.text().includes('¿Confirmar la resolución de TCK-200007?'))!
+      await confirm
+        .findAll('button')
+        .find((button) => button.text() === 'Confirmar resolución')!
+        .trigger('click')
+      await settle()
+
+      expect(panel(wrapper).text()).toContain(
+        'Ticket TCK-200007 resuelto en 2.50 h por Roberto García Hernández',
+      )
+      expect(wrapper.find('.status').text()).toBe('Resuelto')
+      expect(wrapper.find('.detail__sla-label').text()).toBe('Resuelto en 2.50 h')
+      expect(useToastStore().current).toMatchObject({
+        message: 'Ticket resuelto',
+        detail: 'TCK-200007, 2.50 h',
+      })
+
+      await buttonNamed(wrapper, 'Ver historial del ticket')!.trigger('click')
+      expect(wrapper.find('[role="tab"][aria-selected="true"]').text()).toBe('Historial')
+      expect(wrapper.findAll('dialog')).toHaveLength(0)
+    })
+
+    it('cancelar la confirmación vuelve al formulario', async () => {
+      const { wrapper } = await openResolve()
+      const resolve = panel(wrapper)
+      await resolve.find('textarea').setValue('Se reinició el nodo principal del cluster.')
+      await resolve.find('form').trigger('submit')
+
+      await lastDialog(wrapper)
+        .findAll('button')
+        .find((b) => b.text() === 'Cancelar')!
+        .trigger('click')
+
+      expect(panel(wrapper).find('textarea').exists()).toBe(true)
+    })
+
+    it('muestra los errores de la API en el formulario', async () => {
+      server.use(
+        http.post('*/api/tickets/:id/resolve', () =>
+          HttpResponse.json({ detail: 'Atiende el ticket antes de resolverlo.' }, { status: 409 }),
+        ),
+      )
+      const { wrapper } = await openResolve()
+      const resolve = panel(wrapper)
+      await resolve.find('textarea').setValue('Se reinició el nodo principal del cluster.')
+      await resolve.find('form').trigger('submit')
+
+      await lastDialog(wrapper)
+        .findAll('button')
+        .find((b) => b.text() === 'Confirmar resolución')!
+        .trigger('click')
+      await settle()
+
+      expect(panel(wrapper).find('.resolve__error').text()).toBe(
+        'Atiende el ticket antes de resolverlo.',
+      )
+    })
   })
 })

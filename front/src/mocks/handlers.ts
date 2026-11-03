@@ -3,12 +3,18 @@ import { delay, http, HttpResponse } from 'msw'
 import type { AuditEvent, EventDateFilter, EventType } from '@/types/event'
 import type { Page } from '@/types/page'
 import { DEPARTMENTS, PRIORITIES, TICKET_DATE_FILTERS, TICKET_STATUSES } from '@/types/ticket'
-import type { DraftAnalysis, Ticket, TicketDateFilter, TicketDraft } from '@/types/ticket'
+import type {
+  DraftAnalysis,
+  Resolution,
+  Ticket,
+  TicketDateFilter,
+  TicketDraft,
+} from '@/types/ticket'
 import { minutesSince, now, toDateKey } from '@/utils/clock'
 
 import { backups, tables } from './database'
 import { events } from './events'
-import { tickets } from './tickets'
+import { tickets, type DemoTicket } from './tickets'
 import { users } from './users'
 
 // Imita a la API: mismas rutas, mismos parámetros y mismas respuestas. Lo usan las pruebas
@@ -123,10 +129,12 @@ function draftErrors(draft: TicketDraft) {
 const FIRST_NEW_TICKET = 200030
 let nextTicketNumber = FIRST_NEW_TICKET
 
-// Quita los tickets que se registraron, para que cada prueba empiece con la demo intacta.
+const originalTickets = structuredClone(tickets)
+
+// Restaura la demo (quita registros, resoluciones y reasignaciones) para que cada prueba
+// empiece con los mismos datos.
 export function resetMockData() {
-  const created = tickets.findIndex((ticket) => Number(ticket.id.slice(4)) >= FIRST_NEW_TICKET)
-  if (created >= 0) tickets.splice(created)
+  tickets.splice(0, tickets.length, ...structuredClone(originalTickets))
   nextTicketNumber = FIRST_NEW_TICKET
 }
 
@@ -134,6 +142,41 @@ async function respond<T>(body: () => T) {
   if (failing) return HttpResponse.error()
   await delay(LATENCY_MS)
   return HttpResponse.json(body() as never)
+}
+
+const usernameOf = (name?: string) => users.find((user) => user.name === name)?.username
+
+// Los tickets de la demo guardan el nombre del técnico; la API también envía su usuario.
+const withUsername = (ticket: Ticket): Ticket => ({
+  ...ticket,
+  technicianUsername: usernameOf(ticket.technician),
+})
+
+const sessionUser = (request: Request) => {
+  const username = request.headers.get('authorization')?.replace('Bearer simulado-', '')
+  return users.find((user) => user.username === username)
+}
+
+const problem = (status: number, detail: string) => HttpResponse.json({ detail }, { status })
+
+// Mismas reglas que la API para atender y resolver.
+async function changeTicket(
+  request: Request,
+  id: string,
+  change: (ticket: DemoTicket, name: string) => Response | void,
+) {
+  if (failing) return HttpResponse.error()
+  await delay(LATENCY_MS)
+  const ticket = tickets.find((candidate) => candidate.id === id)
+  if (!ticket) return problem(404, 'Ticket no encontrado.')
+  const user = sessionUser(request)
+  if (!user || usernameOf(ticket.technician) !== user.username) {
+    return problem(
+      403,
+      `Solo el técnico asignado puede atender este ticket. Está asignado a ${ticket.technician}.`,
+    )
+  }
+  return change(ticket, user.name) ?? HttpResponse.json(withUsername(ticket))
 }
 
 export const handlers = [
@@ -220,7 +263,11 @@ export const handlers = [
         .filter((ticket) => matchesSearch(ticket, search))
         .sort(byUrgency)
 
-      return paginate(items, numberParam(params, 'page'), numberParam(params, 'pageSize'))
+      return paginate(
+        items.map(withUsername),
+        numberParam(params, 'page'),
+        numberParam(params, 'pageSize'),
+      )
     })
   }),
 
@@ -237,9 +284,68 @@ export const handlers = [
     })
   }),
 
+  http.post('*/api/tickets/:id/attend', ({ request, params }) =>
+    changeTicket(request, String(params.id), (ticket) => {
+      if (ticket.status !== 'Abierto') {
+        return problem(409, `El ticket ya está ${ticket.status.toLowerCase()}.`)
+      }
+      ticket.status = 'En atención'
+    }),
+  ),
+
+  http.post('*/api/tickets/:id/resolve', async ({ request, params }) => {
+    const body = (await request.clone().json()) as Resolution
+    return changeTicket(request, String(params.id), (ticket, name) => {
+      if (ticket.status === 'Resuelto') return problem(409, 'El ticket ya está resuelto.')
+      if (ticket.status !== 'En atención') {
+        return problem(409, 'Atiende el ticket antes de resolverlo.')
+      }
+      Object.assign(ticket, {
+        status: 'Resuelto',
+        solution: body.solution,
+        resolutionHours: body.resolutionHours,
+        resolvedAt: '2026-10-28 11:42:10',
+        resolvedBy: name,
+      })
+    })
+  }),
+
+  http.get('*/api/technicians', () =>
+    respond(() =>
+      users
+        .filter((user) => user.role === 'tecnico' && user.active)
+        .map((user) => ({
+          username: user.username,
+          name: user.name,
+          openTickets: tickets.filter(
+            (ticket) => ticket.technician === user.name && ticket.status !== 'Resuelto',
+          ).length,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    ),
+  ),
+
+  http.post('*/api/tickets/:id/assign', async ({ request, params }) => {
+    if (failing) return HttpResponse.error()
+    await delay(LATENCY_MS)
+    const { technician } = (await request.json()) as { technician: string }
+    const ticket = tickets.find((candidate) => candidate.id === params.id)
+    const target = users.find((user) => user.username === technician && user.role === 'tecnico')
+    if (!ticket) return problem(404, 'Ticket no encontrado.')
+    if (ticket.status === 'Resuelto') {
+      return problem(409, 'Un ticket resuelto ya no se puede reasignar.')
+    }
+    if (!target?.active) return problem(422, 'Elige un técnico activo.')
+    if (target.name === ticket.technician) {
+      return problem(409, 'El ticket ya está asignado a ese técnico.')
+    }
+    ticket.technician = target.name
+    return HttpResponse.json(withUsername(ticket))
+  }),
+
   http.get('*/api/tickets/:id', async ({ params }) => {
     const ticket = tickets.find((candidate) => candidate.id === params.id)
-    if (failing || ticket) return respond(() => ticket)
+    if (failing || ticket) return respond(() => ticket && withUsername(ticket))
     await delay(LATENCY_MS)
     return HttpResponse.json({ detail: 'Ticket no encontrado.' }, { status: 404 })
   }),

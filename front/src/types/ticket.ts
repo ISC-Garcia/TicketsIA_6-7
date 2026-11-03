@@ -46,6 +46,8 @@ export interface Ticket {
   reporter: string
   // Los tickets históricos del dataset no tienen técnico ni análisis del modelo.
   technician?: string
+  // Usuario del técnico: permite saber si el ticket es de quien tiene la sesión.
+  technicianUsername?: string
   summary: string
   description: string
   highlights: string[]
@@ -74,6 +76,18 @@ export interface DraftAnalysis {
   deviceDetected: boolean
   highlights: string[]
   analysis: Analysis
+}
+
+export interface Resolution {
+  solution: string
+  resolutionHours: number
+}
+
+// Técnico activo con su carga, para reasignar.
+export interface Technician {
+  username: string
+  name: string
+  openTickets: number
 }
 
 export const TICKET_DATE_FILTERS = ['hoy', '48', '7'] as const
