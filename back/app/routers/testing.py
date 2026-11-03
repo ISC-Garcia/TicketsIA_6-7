@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/test", tags=["pruebas"])
 @router.post("/reset", status_code=status.HTTP_204_NO_CONTENT)
 def reset(db: DbDep, settings: SettingsDep) -> Response:
     """Vuelve a cargar la semilla demo para que cada prueba E2E empiece del mismo estado."""
-    seed_demo(db, settings.zone)
+    seed_demo(db, settings.zone, settings.now())
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

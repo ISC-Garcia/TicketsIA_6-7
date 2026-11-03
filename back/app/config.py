@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends
-from pydantic import AwareDatetime, Field, field_validator
+from pydantic import AwareDatetime, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACK_DIR = Path(__file__).resolve().parent.parent
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
     database_url: str
     test_database_url: str | None = None
-    # Hora fija para demo y pruebas. En producción se deja vacía y se usa el reloj real.
+    # Hora fija solo para las pruebas automáticas. Fuera de ellas se usa el reloj real.
     app_now: AwareDatetime | None = None
     timezone: str = "America/Mexico_City"
     data_dir: Path = BACK_DIR / "datos"
@@ -42,6 +42,15 @@ class Settings(BaseSettings):
             if value.startswith(prefix):
                 return "postgresql+psycopg://" + value.removeprefix(prefix)
         return value
+
+    @model_validator(mode="after")
+    def fixed_clock_only_in_tests(self) -> "Settings":
+        if self.app_now and self.app_env != "test":
+            raise ValueError(
+                "APP_NOW solo se permite con APP_ENV=test: en desarrollo y producción la API "
+                "usa el reloj real. Quita APP_NOW de back/.env."
+            )
+        return self
 
     @property
     def zone(self) -> ZoneInfo:

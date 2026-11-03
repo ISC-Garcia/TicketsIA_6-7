@@ -48,10 +48,24 @@ def test_e0_01_las_rutas_se_cambian_por_variables(tmp_path: Path) -> None:
     assert settings.model_file == tmp_path / "m.joblib"
 
 
-def test_e0_01_app_now_fija_la_hora() -> None:
-    settings = make(database_url="postgresql://u:p@h/db", app_now="2026-10-28T11:42:10-06:00")
+def test_e0_01_app_now_fija_la_hora_de_las_pruebas() -> None:
+    settings = make(
+        database_url="postgresql://u:p@h/db",
+        app_env="test",
+        app_now="2026-10-28T11:42:10-06:00",
+    )
 
     assert settings.now().isoformat() == "2026-10-28T11:42:10-06:00"
+
+
+@pytest.mark.parametrize("app_env", ["development", "production"])
+def test_e11_01_fuera_de_las_pruebas_no_hay_hora_fija(app_env: str) -> None:
+    with pytest.raises(ValidationError, match="APP_NOW solo se permite con APP_ENV=test"):
+        make(
+            database_url="postgresql://u:p@h/db",
+            app_env=app_env,
+            app_now="2026-10-28T11:42:10-06:00",
+        )
 
 
 def test_e0_01_sin_app_now_usa_el_reloj_real_en_la_zona_configurada() -> None:
@@ -66,7 +80,7 @@ def test_e0_01_sin_app_now_usa_el_reloj_real_en_la_zona_configurada() -> None:
 
 def test_e0_01_app_now_exige_zona_horaria() -> None:
     with pytest.raises(ValidationError, match="app_now"):
-        make(database_url="postgresql://u:p@h/db", app_now="2026-10-28T11:42:10")
+        make(database_url="postgresql://u:p@h/db", app_env="test", app_now="2026-10-28T11:42:10")
 
 
 def test_e1_01_la_clave_de_sesion_es_obligatoria_y_larga(monkeypatch: pytest.MonkeyPatch) -> None:

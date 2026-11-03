@@ -81,7 +81,7 @@ def client(settings: Settings) -> Iterator[TestClient]:
 @pytest.fixture
 def demo(db: Session) -> Session:
     """Base de pruebas con la semilla demo cargada."""
-    seed_demo(db, NOW.tzinfo)  # pyright: ignore[reportArgumentType]
+    seed_demo(db, NOW.tzinfo, NOW)  # pyright: ignore[reportArgumentType]
     return db
 
 

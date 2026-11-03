@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import func, select
@@ -8,7 +8,7 @@ from app import cli
 from app.config import Settings
 from app.models import Event, Ticket, User
 from app.seeds import local_time
-from app.seeds.demo import seed_demo
+from app.seeds.demo import seed_demo, shift_to
 from tests.conftest import NOW
 
 
@@ -17,7 +17,7 @@ def count(db: Session, model: type) -> int:
 
 
 def test_e0_02_la_semilla_trae_los_datos_del_front(db: Session) -> None:
-    seed_demo(db, NOW.tzinfo)  # pyright: ignore[reportArgumentType]
+    seed_demo(db, NOW.tzinfo, NOW)  # pyright: ignore[reportArgumentType]
 
     assert count(db, User) == 4
     assert count(db, Ticket) == 9
@@ -26,7 +26,7 @@ def test_e0_02_la_semilla_trae_los_datos_del_front(db: Session) -> None:
 
 
 def test_e0_02_la_semilla_conserva_ids_horas_y_responsables(db: Session) -> None:
-    seed_demo(db, NOW.tzinfo)  # pyright: ignore[reportArgumentType]
+    seed_demo(db, NOW.tzinfo, NOW)  # pyright: ignore[reportArgumentType]
 
     ticket = db.get(Ticket, "TCK-115796")
     assert ticket is not None
@@ -44,15 +44,15 @@ def test_e0_02_la_semilla_conserva_ids_horas_y_responsables(db: Session) -> None
 
 
 def test_e0_02_los_eventos_quedan_en_orden_cronologico(db: Session) -> None:
-    seed_demo(db, NOW.tzinfo)  # pyright: ignore[reportArgumentType]
+    seed_demo(db, NOW.tzinfo, NOW)  # pyright: ignore[reportArgumentType]
 
     times = list(db.scalars(select(Event.time).order_by(Event.id)))
     assert times == sorted(times)
 
 
 def test_e0_02_la_semilla_se_puede_repetir(db: Session) -> None:
-    seed_demo(db, NOW.tzinfo)  # pyright: ignore[reportArgumentType]
-    seed_demo(db, NOW.tzinfo)  # pyright: ignore[reportArgumentType]
+    seed_demo(db, NOW.tzinfo, NOW)  # pyright: ignore[reportArgumentType]
+    seed_demo(db, NOW.tzinfo, NOW)  # pyright: ignore[reportArgumentType]
 
     assert count(db, Ticket) == 9
     assert db.scalar(select(func.min(Event.id))) == 1
@@ -81,3 +81,34 @@ def test_e0_02_el_comando_no_borra_datos_en_produccion(settings: Settings) -> No
 
     with pytest.raises(SystemExit, match="APP_ENV=production"):
         cli.main(["seed", "demo"], production)
+
+
+def test_e11_01_con_la_hora_de_pruebas_las_fechas_no_se_mueven(db: Session) -> None:
+    seed_demo(db, NOW.tzinfo, NOW)  # pyright: ignore[reportArgumentType]
+
+    ticket = db.get(Ticket, "TCK-200003")
+    assert ticket is not None
+    assert ticket.created_at == datetime(2026, 10, 28, 9, 57, tzinfo=NOW.tzinfo)
+
+
+def test_e11_01_la_semilla_mueve_sus_fechas_a_la_hora_de_carga(db: Session) -> None:
+    # Cargada seis días después, con cruce de horario de verano de por medio (1 de noviembre).
+    later = datetime(2026, 11, 3, 15, 0, 10, tzinfo=NOW.tzinfo)
+    seed_demo(db, NOW.tzinfo, later)  # pyright: ignore[reportArgumentType]
+
+    ticket = db.get(Ticket, "TCK-200003")
+    resolved = db.get(Ticket, "TCK-115796")
+    assert ticket is not None and resolved is not None
+    # Se registró a las 09:57 y el "ahora" de los datos son las 11:42:10.
+    assert later - ticket.created_at == timedelta(hours=1, minutes=45, seconds=10)
+    assert resolved.resolved_at is not None
+    assert resolved.resolved_at - resolved.created_at == timedelta(hours=10, minutes=15, seconds=45)
+    newest = db.scalar(select(func.max(Event.time)))
+    assert newest is not None and newest < later
+    assert later - newest < timedelta(hours=2)
+
+
+def test_e11_01_el_corrimiento_es_de_minutos_completos() -> None:
+    later = datetime(2026, 10, 28, 12, 0, 50, tzinfo=NOW.tzinfo)
+
+    assert shift_to(later, NOW.tzinfo) == timedelta(minutes=19)  # pyright: ignore[reportArgumentType]

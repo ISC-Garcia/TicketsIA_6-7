@@ -18,10 +18,10 @@ def seed(settings: Settings, name: str) -> str:
 
     with Session(get_engine(settings.database_url)) as session:
         if name == "demo":
-            seed_demo(session, settings.zone)
+            seed_demo(session, settings.zone, settings.now())
             return "Semilla demo cargada."
         try:
-            added = seed_full(session, settings.zone, settings.data_dir)
+            added = seed_full(session, settings.zone, settings.data_dir, settings.now())
         except MissingDatasetError as error:
             raise SystemExit(str(error)) from error
         return f"Semilla completo cargada: demo y {added:,} tickets históricos."

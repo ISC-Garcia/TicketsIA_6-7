@@ -89,7 +89,7 @@ def test_e3_03_la_semilla_reinicia_la_numeracion(model_client: TestClient, demo:
     headers = auth_headers(model_client, "tecnico")
     model_client.post("/api/tickets", json=DRAFT, headers=headers)
 
-    seed_demo(demo, NOW.tzinfo)  # pyright: ignore[reportArgumentType]
+    seed_demo(demo, NOW.tzinfo, NOW)  # pyright: ignore[reportArgumentType]
     headers = auth_headers(model_client, "tecnico")
     again = model_client.post("/api/tickets", json=DRAFT, headers=headers)
 

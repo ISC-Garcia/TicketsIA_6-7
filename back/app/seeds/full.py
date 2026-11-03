@@ -6,7 +6,7 @@ abierta. Si un ID ya existe (la semilla demo o una fila repetida del CSV), se co
 
 import csv
 from collections.abc import Iterator
-from datetime import timedelta
+from datetime import datetime, timedelta
 from itertools import batched
 from pathlib import Path
 from typing import Any
@@ -66,13 +66,13 @@ def historic_rows(path: Path, zone: ZoneInfo) -> Iterator[dict[str, Any]]:
             }
 
 
-def seed_full(session: Session, zone: ZoneInfo, data_dir: Path) -> int:
+def seed_full(session: Session, zone: ZoneInfo, data_dir: Path, now: datetime) -> int:
     """Carga la semilla completa y devuelve cuántos tickets históricos se agregaron."""
     path = data_dir / DATASET_FILE
     if not path.exists():
         raise MissingDatasetError(path)
 
-    seed_demo(session, zone)
+    seed_demo(session, zone, now)
     before = session.scalar(select(func.count()).select_from(Ticket)) or 0
 
     for batch in batched(historic_rows(path, zone), BATCH_SIZE, strict=False):
