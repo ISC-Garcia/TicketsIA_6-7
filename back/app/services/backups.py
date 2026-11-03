@@ -1,16 +1,15 @@
 """Respaldos con `pg_dump` (E9-02, P-9). Solo se listan los que se ejecutaron de verdad."""
 
-import hashlib
 import subprocess
 import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
+from app.integrity import sha256_of
 from app.models import Backup
 from app.services.monitoring import wall_clock
 
@@ -27,14 +26,6 @@ def run_pg_dump(command: list[str]) -> subprocess.CompletedProcess[str]:
 def libpq_url(database_url: str) -> str:
     """`pg_dump` no entiende el prefijo de SQLAlchemy."""
     return database_url.replace("postgresql+psycopg://", "postgresql://", 1)
-
-
-def sha256_of(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as file:
-        for chunk in iter(lambda: file.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def last_line(output: str) -> str:

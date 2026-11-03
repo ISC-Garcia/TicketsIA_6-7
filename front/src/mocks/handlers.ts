@@ -562,6 +562,18 @@ export const handlers = [
     const period = pick(new URL(request.url).searchParams.get('period'), MONITOR_PERIODS) ?? '24h'
     return respond(() => databaseStatus(period))
   }),
+  http.get('*/api/database/integrity', () =>
+    respond(() => ({
+      checkedAt: '2026-10-28 11:42:10',
+      tables: [
+        { name: 'tickets', verified: 99008, mismatched: 0, examples: [] },
+        { name: 'events', verified: 31, mismatched: 0, examples: [] },
+      ],
+      backups: backups
+        .filter((backup) => backup.status === 'Exitoso')
+        .map(({ id, fileName, startedAt }) => ({ id, fileName, startedAt, result: 'Íntegro' })),
+    })),
+  ),
   http.get('*/api/database/tables', () => respond(() => tables)),
   http.get('*/api/database/backups', () => respond(() => backups)),
 ]

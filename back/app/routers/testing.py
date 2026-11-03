@@ -1,7 +1,7 @@
 """Endpoints de apoyo para las pruebas E2E. Solo se registran con APP_ENV=test."""
 
 from fastapi import APIRouter, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.config import SettingsDep
 from app.db import DbDep
@@ -30,5 +30,17 @@ def set_user_state(username: str, body: UserState, db: DbDep) -> Response:
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado.")
     user.active = body.active
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/tamper/{ticket_id}", status_code=status.HTTP_204_NO_CONTENT)
+def tamper_ticket(ticket_id: str, db: DbDep) -> Response:
+    """Cambia un ticket directo en la base, sin pasar por la API, para probar la integridad."""
+    changed = db.execute(
+        text("UPDATE tickets SET resolution_hours = 0.5 WHERE id = :id"), {"id": ticket_id}
+    )
+    if not changed.rowcount:  # pyright: ignore[reportAttributeAccessIssue]
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado.")
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

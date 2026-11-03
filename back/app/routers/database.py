@@ -4,6 +4,8 @@ from sqlalchemy.exc import DBAPIError
 from app.auth import require_roles
 from app.config import SettingsDep
 from app.db import DbDep
+from app.integrity import verify_backup, verify_table
+from app.models import Event, Ticket
 from app.schemas import ApiModel
 from app.services import monitoring as service
 from app.services.backups import recent_backups
@@ -149,3 +151,46 @@ def database_backups(db: DbDep, settings: SettingsDep) -> list[BackupOut]:
         )
         for backup in recent_backups(db, service.wall_clock(settings.zone))
     ]
+
+
+class TableIntegrity(ApiModel):
+    name: str
+    verified: int
+    mismatched: int
+    # Hasta 20 IDs de registros alterados; `mismatched` es el total.
+    examples: list[str]
+
+
+class BackupIntegrity(ApiModel):
+    id: int
+    file_name: str
+    started_at: str
+    result: str
+
+
+class IntegrityReport(ApiModel):
+    checked_at: str
+    tables: list[TableIntegrity]
+    backups: list[BackupIntegrity]
+
+
+@router.get("/integrity")
+def database_integrity(db: DbDep, settings: SettingsDep) -> IntegrityReport:
+    """Recalcula la huella SHA-256 de tickets, eventos y respaldos exitosos (E9-05)."""
+    now = service.wall_clock(settings.zone)
+    successful = [backup for backup in recent_backups(db, now) if backup.status == "Exitoso"]
+    return IntegrityReport(
+        checked_at=settings.local(now),
+        tables=[
+            TableIntegrity.model_validate(verify_table(db, model)) for model in (Ticket, Event)
+        ],
+        backups=[
+            BackupIntegrity(
+                id=backup.id,
+                file_name=backup.file_name,
+                started_at=settings.local(backup.started_at),
+                result=verify_backup(backup, settings.backup_folder),
+            )
+            for backup in successful
+        ],
+    )

@@ -7,6 +7,8 @@ import type { DatabaseTable } from '@/types/database'
 import { formatNumber } from '@/utils/chart'
 import { formatBytes } from '@/utils/format'
 
+import IntegrityCheck from './IntegrityCheck.vue'
+
 const props = defineProps<{
   tables: DatabaseTable[]
 }>()
@@ -28,6 +30,7 @@ const stats = computed(() => {
 
 <template>
   <div class="tables">
+    <IntegrityCheck />
     <div class="tables__card" role="table" aria-label="Tablas de la base de datos">
       <div role="rowgroup">
         <div role="row" class="tables__row tables__row--head">

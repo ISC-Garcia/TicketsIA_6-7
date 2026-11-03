@@ -63,3 +63,24 @@ export interface DatabaseStatus {
   // `available` es falso si pg_stat_statements no está activa en el servidor.
   slowQueries?: { available: boolean; items: SlowQuery[] }
 }
+
+export interface TableIntegrity {
+  name: string
+  verified: number
+  mismatched: number
+  // Hasta 20 IDs alterados; `mismatched` es el total.
+  examples: string[]
+}
+
+export interface BackupIntegrity {
+  id: number
+  fileName: string
+  startedAt: string
+  result: 'Íntegro' | 'Alterado' | 'No encontrado'
+}
+
+export interface IntegrityReport {
+  checkedAt: string
+  tables: TableIntegrity[]
+  backups: BackupIntegrity[]
+}

@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { http, HttpResponse } from 'msw'
 
 import { backups, tables } from '@/mocks/database'
+import { setMockFailure } from '@/mocks/handlers'
+import { server } from '@/mocks/server'
 
 import BackupsTab from '../BackupsTab.vue'
+import IntegrityCheck from '../IntegrityCheck.vue'
 import TablesTab from '../TablesTab.vue'
 
 let mounted: VueWrapper | undefined
@@ -101,5 +105,82 @@ describe('BackupsTab', () => {
     mounted = mount(BackupsTab, { props: { backups: [] } })
 
     expect(mounted.text()).toContain('No se ha ejecutado ningún respaldo en los últimos 7 días.')
+  })
+})
+
+describe('IntegrityCheck', () => {
+  const check = async () => {
+    mounted = mount(IntegrityCheck)
+    await mounted.find('button').trigger('click')
+    expect(mounted.find('button').text()).toBe('Verificando…')
+    await flushPromises()
+    await new Promise((resolve) => setTimeout(resolve))
+    await flushPromises()
+    return mounted
+  }
+
+  it('E9-05: aclara el límite de la verificación', () => {
+    mounted = mount(IntegrityCheck)
+
+    expect(mounted.text()).toContain('No detecta registros borrados.')
+    expect(mounted.find('.integrity__result').exists()).toBe(false)
+  })
+
+  it('E9-05: muestra el resultado por tabla y por respaldo', async () => {
+    const wrapper = await check()
+
+    const items = wrapper.findAll('.integrity__item').map((item) => item.text())
+    expect(items).toEqual([
+      'tickets99,008 verificadosSin cambios',
+      'events31 verificadosSin cambios',
+      'tickets-20261028-101831.dumpRespaldo del 2026-10-28 10:18:31Íntegro',
+      'tickets-20261027-030005.dumpRespaldo del 2026-10-27 03:00:05Íntegro',
+    ])
+    expect(wrapper.find('.integrity__item--bad').exists()).toBe(false)
+  })
+
+  it('E9-05: señala los registros y respaldos alterados', async () => {
+    server.use(
+      http.get('*/api/database/integrity', () =>
+        HttpResponse.json({
+          checkedAt: '2026-10-28 11:42:10',
+          tables: [
+            { name: 'tickets', verified: 9, mismatched: 1, examples: ['TCK-115796'] },
+            { name: 'events', verified: 32, mismatched: 3, examples: ['EV-1', 'EV-2', 'EV-3'] },
+          ],
+          backups: [
+            { id: 1, fileName: 'a.dump', startedAt: '2026-10-28 10:00:00', result: 'Alterado' },
+          ],
+        }),
+      ),
+    )
+    const wrapper = await check()
+
+    const bad = wrapper.findAll('.integrity__item--bad')
+    expect(bad).toHaveLength(3)
+    expect(bad[0]!.text()).toContain('1 alterado')
+    expect(bad[0]!.find('.integrity__examples').text()).toBe('TCK-115796')
+    expect(bad[1]!.text()).toContain('3 alterados')
+    expect(bad[2]!.text()).toContain('Alterado')
+  })
+
+  it('E9-05: sin respaldos exitosos lo dice', async () => {
+    server.use(
+      http.get('*/api/database/integrity', () =>
+        HttpResponse.json({ checkedAt: '2026-10-28 11:42:10', tables: [], backups: [] }),
+      ),
+    )
+    const wrapper = await check()
+
+    expect(wrapper.text()).toContain(
+      'No hay respaldos exitosos en los últimos 7 días para revisar.',
+    )
+  })
+
+  it('E9-05: un error se muestra sin resultado', async () => {
+    setMockFailure(true)
+    const wrapper = await check()
+
+    expect(wrapper.find('[role="alert"]').text()).toBe('No se pudo conectar con el servidor.')
   })
 })

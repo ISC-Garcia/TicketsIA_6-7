@@ -73,6 +73,8 @@ class Ticket(Base):
     )
     solution: Mapped[str | None] = mapped_column(Text)
     edited_after_close: Mapped[bool] = mapped_column(default=False)
+    # SHA-256 del contenido, para detectar cambios hechos por fuera de la API (app/integrity.py).
+    content_sha256: Mapped[str | None] = mapped_column(String(64))
 
     technician: Mapped["User | None"] = relationship(foreign_keys=[technician_username])
     resolved_by: Mapped["User | None"] = relationship(foreign_keys=[resolved_by_username])

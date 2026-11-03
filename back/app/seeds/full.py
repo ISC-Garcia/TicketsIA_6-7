@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.integrity import HASH_COLUMN, digest, hashed_columns
 from app.models import Ticket
 from app.seeds import local_time, sync_ticket_numbers
 from app.seeds.demo import seed_demo
@@ -43,12 +44,15 @@ def summarize(description: str) -> str:
     return cut.rstrip(" ,.;:") + "…"
 
 
+TICKET_COLUMNS = hashed_columns(Ticket)
+
+
 def historic_rows(path: Path, zone: ZoneInfo) -> Iterator[dict[str, Any]]:
     with path.open(encoding="utf-8", newline="") as file:
         for row in csv.DictReader(file):
             created_at = local_time(row["fecha_creacion"], zone)
             hours = float(row["tiempo_resolucion_horas"])
-            yield {
+            ticket = {
                 "id": row["id_ticket"],
                 "priority": row["prioridad"],
                 "area": row["area_solicitante"],
@@ -64,6 +68,9 @@ def historic_rows(path: Path, zone: ZoneInfo) -> Iterator[dict[str, Any]]:
                 "resolved_at": created_at + timedelta(hours=hours),
                 "edited_after_close": False,
             }
+            # La inserción masiva no pasa por el ORM: la huella se calcula aquí, con la misma
+            # función que usa la API.
+            yield ticket | {HASH_COLUMN: digest(ticket, TICKET_COLUMNS)}
 
 
 def seed_full(session: Session, zone: ZoneInfo, data_dir: Path, now: datetime) -> int:
