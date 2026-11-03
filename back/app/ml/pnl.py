@@ -172,11 +172,11 @@ def find_keywords(text: str, vectorizer: Any = None, count: int = KEYWORD_COUNT)
     return ranked[:count]
 
 
-def text_vectorizer(pipeline: Any) -> Any:
-    """El TF-IDF que el modelo aprendió de la descripción, o None si no hay modelo."""
-    if pipeline is None:
+def text_vectorizer(bundle: dict[str, Any] | None) -> Any:
+    """El TF-IDF que el modelo de prioridad aprendió de la descripción, o None sin modelo."""
+    if bundle is None:
         return None
-    return pipeline.named_steps["preprocesamiento"].named_transformers_["texto"]
+    return bundle["prioridad"].named_steps["preprocesamiento"].named_transformers_["texto"]
 
 
 def extract(text: str, vectorizer: Any = None) -> Entities:

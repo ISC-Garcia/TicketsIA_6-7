@@ -110,15 +110,15 @@ uv run alembic upgrade head
 El dataset y el modelo no se versionan: viven en `back/datos/`, que git ignora, y se regeneran con un solo comando. La generación y el entrenamiento fijan la semilla `42`, así que siempre producen los mismos archivos.
 
 ```sh
-uv run python -m app.ml.train     # unos 40 s
+uv run python -m app.ml.train     # unos 2 min
 ```
 
 | Archivo | Qué es |
 | --- | --- |
 | `tickets_soporte.csv` | Dataset bruto: 102,000 filas con duplicados, nulos, fechas corruptas y tiempos atípicos a propósito |
 | `tickets_soporte_procesado.csv` | Dataset limpio: 99,209 filas |
-| `modelo_tickets.joblib` | Modelo entrenado, comprimido (unos 18 MB) |
-| `metricas.json` | Exactitud, métricas por clase, matriz de confusión, división 70/15/15, limpieza y parámetros |
+| `modelo_tickets.joblib` | Los tres clasificadores entrenados (prioridad, departamento y sentimiento), comprimidos (unos 18 MB) |
+| `metricas.json` | Exactitud con el departamento y el sentimiento predichos, métricas por clase, matriz de confusión, división 70/15/15, limpieza y parámetros |
 
 La API solo carga un modelo entrenado con la misma versión de scikit-learn que tiene instalada. Si no hay modelo o es de otra versión, arranca igual y lo informa en `GET /api/model/info`.
 
