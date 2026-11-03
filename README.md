@@ -155,6 +155,8 @@ Las pruebas usan `TEST_DATABASE_URL`: borran esa base y la migran desde cero al 
 | `GET` | `/api/model/info` | Con sesión | Si el modelo está cargado, cuándo se entrenó, con qué versión y su exactitud |
 | `GET` | `/api/tickets` | Técnico, coordinador | Bandeja: filtros `priority`, `department`, `status`, `date` (`hoy`, `48`, `7`) y `search`; `page` y `pageSize` (25 por omisión, máximo 100). Ordena por prioridad y antigüedad. Sin `status` excluye los resueltos |
 | `GET` | `/api/tickets/counts` | Técnico, coordinador | Tickets por prioridad; `resolved=true` cuenta los resueltos |
+| `POST` | `/api/tickets/analyze` | Técnico | Clasifica una captura (`area`, `reporter`, `description` de 20 a 1,000 caracteres, `device` opcional) sin guardarla. Responde 503 si no hay modelo |
+| `POST` | `/api/tickets` | Técnico | Registra la captura: la vuelve a clasificar, le asigna el siguiente ID (`TCK-200030`, …) y al técnico de la sesión, y registra "Ticket creado" y "Clasificado por IA" |
 | `GET` | `/api/tickets/{id}` | Con sesión | Detalle de un ticket |
 | `GET` | `/api/tickets/{id}/events` | Con sesión | Historial del ticket en orden cronológico |
 
