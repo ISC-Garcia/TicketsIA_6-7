@@ -121,6 +121,10 @@ jobs:
           cache-dependency-glob: back/uv.lock
       - run: uv sync --locked
         working-directory: back
+      # El modelo no se versiona: las E2E usan uno de 10,000 registros (unos 10 s).
+      - name: Modelo para las E2E
+        run: uv run python -m app.ml.train --registros 10000 --carpeta datos
+        working-directory: back
       - run: npm ci
         working-directory: front
       - run: npx playwright install --with-deps chromium firefox
