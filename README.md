@@ -22,6 +22,7 @@ npm install
 | `npm run build` | Verifica tipos y compila para producción |
 | `npm run preview` | Sirve localmente el build de producción |
 | `npm run test:unit` | Ejecuta las pruebas unitarias con [Vitest](https://vitest.dev/) |
+| `npm run test:coverage` | Ejecuta las pruebas una vez y exige 90 % de cobertura |
 | `npm run lint` | Revisa y corrige el código con Oxlint y [ESLint](https://eslint.org/) |
 | `npm run format` | Formatea `src/` con Prettier |
 
@@ -38,73 +39,94 @@ TypeScript no entiende los imports de `.vue` por sí solo, así que la verificac
 
 ## Back
 
-API REST con FastAPI que guarda los tickets en PostgreSQL mediante SQLAlchemy. Al registrar un ticket, analiza la descripción con PNL y el modelo de Machine Learning para asignar la prioridad (Crítica, Alta, Media, Baja) y el departamento, y detectar el sentimiento. Cada acción queda en una bitácora de eventos.
+API REST con FastAPI sobre PostgreSQL. Clasifica cada ticket con un modelo de Machine Learning (TF-IDF y Random Forest) entrenado con un dataset sintético de 100,000 tickets, y guarda cada acción en una bitácora de eventos.
 
-| Archivo | Qué hace |
+Requiere [uv](https://docs.astral.sh/uv/) y Docker o Podman. uv instala Python 3.13 y las dependencias fijadas en `uv.lock`. Todos los comandos se ejecutan dentro de `back/`.
+
+| Carpeta o archivo | Qué contiene |
 | --- | --- |
-| `main.py` | Levanta la API: CORS, carga del modelo, análisis PNL y ML, y todos los endpoints |
-| `database.py` | Conecta con PostgreSQL usando las variables de `.env` |
-| `models.py` | Tablas `tickets` (con el análisis del modelo en una columna JSONB) y `events` (bitácora) |
-| `cargar_csv.py` | Carga inicial: lee el dataset procesado, quita duplicados e inserta los tickets en PostgreSQL |
-| `scripts_ml/` | Scripts para generar el dataset, limpiarlo, entrenar el modelo y probarlo |
+| `app/main.py` | Crea la API, carga el modelo al arrancar y registra los routers |
+| `app/config.py` | Configuración leída de variables de entorno o de `.env` |
+| `app/models/` | Tablas `users`, `tickets` y `events` |
+| `app/routers/` | Endpoints de la API |
+| `app/ml/` | Generación del dataset, limpieza, entrenamiento y carga del modelo |
+| `app/seeds/` | Semillas `demo` y `completo` |
+| `app/cli.py` | Comandos de mantenimiento |
+| `migrations/` | Migraciones de Alembic |
+| `compose.yaml` | PostgreSQL 17 con las bases `tickets` y `tickets_test` |
+| `tests/` | Pruebas con pytest contra la base `tickets_test` |
 
 ### Configuración
 
-Todos los comandos se ejecutan dentro de `back/`. Copia `.env.example` como `.env` y llena los datos de tu PostgreSQL (`DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`). El `.env` no se sube al repositorio.
-
 ```sh
 cd back
-pip install -r requirements.txt
-python cargar_csv.py
-uvicorn main:app --reload
+cp .env.example .env              # el .env no se sube al repositorio
+docker compose up -d              # o: podman compose up -d
+uv sync
+uv run alembic upgrade head
 ```
+
+| Variable | Qué hace |
+| --- | --- |
+| `DATABASE_URL` | Conexión a PostgreSQL. Es obligatoria: la API no arranca sin ella |
+| `TEST_DATABASE_URL` | Base de las pruebas. Debe ser distinta de `DATABASE_URL` |
+| `APP_ENV` | `development`, `test` o `production`. En producción no se pueden cargar semillas |
+| `APP_NOW` | Hora fija de la demo (`2026-10-28T11:42:10-06:00`), la misma que usa el front. Vacía para usar el reloj real |
+| `TIMEZONE` | Zona horaria de la mesa de ayuda, `America/Mexico_City` por omisión |
+| `DATA_DIR`, `MODEL_PATH` | Carpeta del dataset y ruta del modelo. Por omisión, `back/datos/` |
+| `CORS_ORIGINS` | Orígenes que pueden llamar a la API, en JSON |
 
 ### Datos y modelo
 
-El dataset es sintético. Ni él ni el modelo se versionan porque pesan cerca de 150 MB: viven en `back/datos/`, que git ignora, y se regeneran con los scripts. La generación y el entrenamiento fijan la semilla `42`, así que el resultado siempre es el mismo.
+El dataset y el modelo no se versionan: viven en `back/datos/`, que git ignora, y se regeneran con un solo comando. La generación y el entrenamiento fijan la semilla `42`, así que siempre producen los mismos archivos.
 
 ```sh
-cd back/datos
-python ../scripts_ml/dataset_sintetico.py   # genera tickets_soporte.csv
-python ../scripts_ml/limpieza_masiva.py     # genera tickets_soporte_procesado.csv
-python ../scripts_ml/entrenamiento_ml.py    # genera modelo_tickets.joblib
+uv run python -m app.ml.train     # unos 40 s
 ```
 
-Por ahora `main.py` y `cargar_csv.py` buscan estos archivos directamente en `back/`, no en `back/datos/`.
+| Archivo | Qué es |
+| --- | --- |
+| `tickets_soporte.csv` | Dataset bruto: 102,000 filas con duplicados, nulos, fechas corruptas y tiempos atípicos a propósito |
+| `tickets_soporte_procesado.csv` | Dataset limpio: 99,209 filas |
+| `modelo_tickets.joblib` | Modelo entrenado, comprimido (unos 18 MB) |
+| `metricas.json` | Exactitud, métricas por clase, matriz de confusión, división 70/15/15, limpieza y parámetros |
+
+La API solo carga un modelo entrenado con la misma versión de scikit-learn que tiene instalada. Si no hay modelo o es de otra versión, arranca igual y lo informa en `GET /api/model/info`.
+
+### Semillas
+
+Cada semilla borra todos los datos antes de cargar.
+
+```sh
+uv run python -m app.cli seed demo       # 4 usuarios, 9 tickets y 31 eventos del prototipo
+uv run python -m app.cli seed completo   # la demo más 98,999 tickets históricos resueltos (~30 s)
+```
+
+La semilla `completo` necesita `tickets_soporte_procesado.csv` en `back/datos/`. El CSV tiene 99,209 filas pero 99,000 IDs distintos, y `TCK-115796` ya viene en la demo, así que se cargan 98,999.
+
+### Desarrollo y pruebas
+
+```sh
+uv run fastapi dev app/main.py    # API en http://localhost:8000, documentación en /docs
+uv run ruff check                 # lint
+uv run ruff format                # formato
+uv run pytest --cov               # pruebas; exige 90 % de cobertura
+```
+
+Las pruebas usan `TEST_DATABASE_URL`: borran esa base y la migran desde cero al empezar.
 
 ### Endpoints
 
 | Método | Ruta | Qué hace |
 | --- | --- | --- |
-| `GET` | `/` | Comprueba que la API responda |
-| `POST` | `/api/auth/login` | Inicia sesión con usuario y contraseña, y devuelve el usuario con su rol |
-| `GET` | `/api/tickets` | Lista paginada con filtros `status`, `priority`, `search`, `page` y `pageSize` (10 por omisión). Sin `status` excluye los resueltos |
-| `GET` | `/api/tickets/{ticket_id}` | Detalle de un ticket con su análisis |
-| `POST` | `/api/tickets` | Crea un ticket y lo clasifica con el modelo |
-| `PUT` | `/api/tickets/{ticket_id}` | Cambia estado, técnico, prioridad o solución, y registra cada cambio en la bitácora |
-| `GET` | `/api/events` | Lista paginada de eventos, filtrable por `ticketId` |
-| `GET` | `/api/tickets/{ticket_id}/events` | Historial de un ticket en orden cronológico |
-| `GET` | `/api/model/metrics` | Métricas globales del modelo (por ahora, un `accuracy` fijo) |
-| `GET` | `/api/model/info` | Estado del motor de inferencia (por ahora, un texto fijo) |
+| `GET` | `/api/health` | Estado de la API, de la base de datos y del modelo, con la hora del servidor |
+| `GET` | `/api/model/info` | Si el modelo está cargado, cuándo se entrenó, con qué versión y su exactitud |
 
-Ejemplo para crear un ticket:
+## Integración continua
 
-```json
-{
-  "area": "Sistemas",
-  "reporter": "Nombre del usuario",
-  "description": "Falló el servidor de base de datos con error DEADLOCK_DB",
-  "device": "Base de Datos"
-}
-```
+GitHub Actions corre en cada PR hacia `dev` y `main`:
 
-Ejemplo para resolverlo:
+- **Front:** lint, pruebas con cobertura y build.
+- **Back:** Ruff y pytest contra PostgreSQL.
 
-```json
-{
-  "status": "Resuelto",
-  "solution": "Se reinició el servicio y se aplicó parche de memoria.",
-  "resolutionHours": 1.5,
-  "updatedBy": "Roberto García Hernández"
-}
-```
+El resumen de cada ejecución muestra la cobertura de los dos servicios.
