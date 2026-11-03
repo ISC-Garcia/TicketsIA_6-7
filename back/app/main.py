@@ -5,7 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, get_settings
-from app.routers import health
+from app.ml.model import load_model
+from app.routers import health, model
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -13,7 +14,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        app.state.model = None
+        # El modelo se carga una sola vez; si falta, la API arranca y lo informa.
+        app.state.model = load_model(settings.model_file)
         yield
 
     app = FastAPI(
@@ -29,6 +31,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health.router)
+    app.include_router(model.router)
     return app
 
 

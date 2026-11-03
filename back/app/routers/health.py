@@ -27,6 +27,6 @@ def health(request: Request, db: DbDep, settings: SettingsDep) -> Health:
     return Health(
         status="ok" if database else "degradado",
         database=database,
-        model_loaded=request.app.state.model is not None,
+        model_loaded=request.app.state.model.loaded,
         now=settings.now().isoformat(),
     )
