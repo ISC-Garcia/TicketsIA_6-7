@@ -5,10 +5,22 @@ export class ServiceError extends Error {
   constructor(
     message: string,
     readonly status?: number,
+    // Errores de validación por campo, como `{ description: 'Debe tener al menos 20…' }`.
+    readonly fields: Record<string, string> = {},
   ) {
     super(message)
   }
 }
+
+interface FieldError {
+  field: string
+  message: string
+}
+
+const fieldsOf = (errors: unknown): Record<string, string> =>
+  Array.isArray(errors)
+    ? Object.fromEntries((errors as FieldError[]).map(({ field, message }) => [field, message]))
+    : {}
 
 export type QueryValue = string | number | boolean | undefined | null
 export type Query = Record<string, QueryValue>
@@ -52,7 +64,9 @@ async function failure(response: Response) {
   }
   try {
     const body = await response.json()
-    if (typeof body?.detail === 'string') return new ServiceError(body.detail, response.status)
+    if (typeof body?.detail === 'string') {
+      return new ServiceError(body.detail, response.status, fieldsOf(body.errors))
+    }
   } catch {
     // JSON inválido: se usa el mensaje genérico.
   }
