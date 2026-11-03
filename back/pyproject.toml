@@ -1,0 +1,52 @@
+[project]
+name = "tickets-back"
+version = "0.1.0"
+description = "API del Sistema de Tickets de Soporte Técnico"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "alembic>=1.20.1",
+    "fastapi[standard]>=0.162.0",
+    "joblib>=1.6.0",
+    "numpy>=2.5.4",
+    "pandas>=3.1.0",
+    "psycopg[binary]>=3.3.7",
+    "pydantic-settings>=2.16.2",
+    "scikit-learn>=1.9.1",
+    "sqlalchemy>=2.1.6",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.3",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["scripts_ml"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "N", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Las migraciones guardan los CHECK de los catálogos tal como quedan en la base.
+"migrations/versions/*" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true

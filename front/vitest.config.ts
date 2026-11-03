@@ -10,6 +10,13 @@ export default mergeConfig(
       exclude: [...configDefaults.exclude, 'e2e/**'],
       root: fileURLToPath(new URL('./', import.meta.url)),
       setupFiles: ['./src/__tests__/setup.ts'],
+      coverage: {
+        provider: 'v8',
+        include: ['src/**/*.{ts,vue}'],
+        exclude: ['src/**/__tests__/**', 'src/main.ts', 'src/views/dev/**', 'src/**/*.d.ts'],
+        reporter: ['text-summary', 'text', 'json-summary'],
+        thresholds: { lines: 90, branches: 90, functions: 90, statements: 90 },
+      },
     },
   }),
 )
