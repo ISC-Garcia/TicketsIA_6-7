@@ -105,11 +105,12 @@ describe('AppLayout', () => {
 
   it('E11-02: la fecha es la del servidor y cambia sola al pasar la medianoche', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
-    syncClock('2026-11-03T23:59:50-06:00')
+    // Horas locales, sin zona: la prueba vale en cualquier zona horaria del equipo.
+    syncClock(new Date('2026-11-03T23:59:50').toISOString())
     const { wrapper } = await mountAt('/bandeja')
     expect(wrapper.find('.header__date').text()).toBe('Martes, 3 de noviembre de 2026')
 
-    syncClock('2026-11-04T00:00:20-06:00')
+    syncClock(new Date('2026-11-04T00:00:20').toISOString())
     await vi.advanceTimersByTimeAsync(TICK_MS)
 
     expect(wrapper.find('.header__date').text()).toBe('Miércoles, 4 de noviembre de 2026')
