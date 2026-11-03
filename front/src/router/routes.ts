@@ -2,6 +2,7 @@ import type { RouteRecordRaw } from 'vue-router'
 
 import type { Role } from '@/types/user'
 import { DASHBOARD_PERIODS, type DashboardPeriod } from '@/types/dashboard'
+import { MONITOR_PERIODS, type MonitorPeriod } from '@/types/database'
 import { MODEL_TABS, type ModelTab } from '@/types/model'
 import { parseEventFilters } from '@/utils/eventFilters'
 import { parseTicketFilters } from '@/utils/ticketFilters'
@@ -20,12 +21,12 @@ declare module 'vue-router' {
 const parseDashboardPeriod = (value: unknown): DashboardPeriod =>
   DASHBOARD_PERIODS.find((period) => period === value) ?? 'mes'
 
+const parseMonitorPeriod = (value: unknown): MonitorPeriod =>
+  MONITOR_PERIODS.find((period) => period === value) ?? '24h'
+
 // Igual con la pestaña del modelo: una desconocida abre Métricas, como dice el breadcrumb.
 const parseModelTab = (value: unknown): ModelTab =>
   MODEL_TABS.find((tab) => tab === value) ?? 'metricas'
-
-// Vista temporal: cada historia la reemplaza por su pantalla.
-const placeholder = () => import('@/views/PlaceholderView.vue')
 
 export const ROLE_HOME: Record<Role, string> = {
   tecnico: 'bandeja',
@@ -116,12 +117,10 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'monitoreo/:tab?',
         name: 'monitoreo',
-        component: placeholder,
-        meta: {
-          roles: ['auditor'],
-          title: 'Monitoreo de base de datos',
-          tabs: { estado: 'Estado general', tablas: 'Tablas', respaldos: 'Respaldos' },
-        },
+        component: () => import('@/views/MonitoringView.vue'),
+        props: (route) => ({ period: parseMonitorPeriod(route.query.periodo) }),
+        // Tablas y Respaldos llegan con E9-04.
+        meta: { roles: ['auditor'], title: 'Monitoreo de base de datos' },
       },
       {
         path: 'bitacora',
@@ -133,7 +132,11 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'historial/:id?',
         name: 'historial',
-        component: placeholder,
+        component: () => import('@/views/TicketHistoryView.vue'),
+        // El ID se normaliza: "tck-115796" en la URL abre TCK-115796.
+        props: (route) => ({
+          id: typeof route.params.id === 'string' ? route.params.id.toUpperCase() : undefined,
+        }),
         meta: { roles: ['auditor'], title: 'Historial de ticket' },
       },
     ],

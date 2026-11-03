@@ -28,3 +28,28 @@ export function formatMinutes(minutes: number): string {
 
 export const formatTicketCount = (count: number) =>
   count === 1 ? '1 ticket' : `${count.toLocaleString('es-MX')} tickets`
+
+// "12 d 4 h", "3 h 12 min", "8 min" o "40 s": cuánto lleva encendido el servidor.
+export function formatUptime(seconds: number): string {
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+  if (days) return `${days} d ${hours % 24} h`
+  if (hours) return `${hours} h ${minutes % 60} min`
+  if (minutes) return `${minutes} min`
+  return `${Math.floor(seconds)} s`
+}
+
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
+
+// "486 MB" o "1.2 GB", en múltiplos de 1,024 como los muestra PostgreSQL.
+export function formatBytes(bytes: number): string {
+  let value = bytes
+  let unit = 0
+  while (value >= 1024 && unit < BYTE_UNITS.length - 1) {
+    value /= 1024
+    unit += 1
+  }
+  const decimals = value < 10 && unit > 0 ? 1 : 0
+  return `${value.toLocaleString('es-MX', { maximumFractionDigits: decimals })} ${BYTE_UNITS[unit]}`
+}

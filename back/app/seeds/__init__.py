@@ -19,8 +19,14 @@ def local_time(value: str, zone: ZoneInfo) -> datetime:
     raise ValueError(f"Fecha con formato desconocido: {value!r}")
 
 
+# Las mediciones de PostgreSQL no son datos de la semilla: recargarla no las borra.
+NOT_SEEDED = {"database_samples"}
+
+
 def clear(session: Session) -> None:
-    tables = ", ".join(table.name for table in Base.metadata.sorted_tables)
+    tables = ", ".join(
+        table.name for table in Base.metadata.sorted_tables if table.name not in NOT_SEEDED
+    )
     session.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
 
 

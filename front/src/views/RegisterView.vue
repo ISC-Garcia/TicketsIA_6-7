@@ -14,7 +14,8 @@ import { analyzeTicket, createTicket } from '@/services/tickets'
 import { useToastStore } from '@/stores/toast'
 import { AREAS } from '@/types/ticket'
 import type { Area, DraftAnalysis, TicketDraft } from '@/types/ticket'
-import { formatDateTime, now } from '@/utils/clock'
+import { useNow } from '@/composables/useNow'
+import { formatDateTime } from '@/utils/clock'
 
 const MAX_LENGTH = 1000
 const MIN_LENGTH = 20
@@ -47,7 +48,9 @@ const formError = ref('')
 const result = ref<DraftAnalysis | null>(null)
 const saving = ref(false)
 const saveError = ref('')
-const registeredAt = formatDateTime(now())
+// Vista previa: la fecha definitiva la pone la API al confirmar.
+const current = useNow()
+const registeredAt = computed(() => formatDateTime(current.value))
 
 const locked = computed(() => stage.value !== 'form')
 const descriptionCount = computed(() => `${form.description.length} / ${MAX_LENGTH}`)

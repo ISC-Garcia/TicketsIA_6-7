@@ -7,6 +7,8 @@ name: tickets
 services:
   db:
     image: docker.io/library/postgres:17
+    # pg_stat_statements registra el tiempo de cada consulta para el monitoreo (E9-01).
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-tickets}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tickets}

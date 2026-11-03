@@ -14,6 +14,7 @@ import { ServiceError } from '@/services/http'
 import type { Dashboard, DashboardKpis, DashboardPeriod } from '@/types/dashboard'
 import type { Priority } from '@/types/ticket'
 import { formatDelta, formatNumber } from '@/utils/chart'
+import { useNow } from '@/composables/useNow'
 import { minutesSince } from '@/utils/clock'
 
 const props = defineProps<{
@@ -35,6 +36,7 @@ const PRIORITY_COLORS: Record<Priority, string> = {
 const DEPARTMENT_COLORS = [1, 2, 3, 4, 5].map((index) => `var(--color-chart-${index})`)
 
 const router = useRouter()
+const current = useNow()
 
 const data = ref<Dashboard | null>(null)
 const loading = ref(true)
@@ -263,7 +265,7 @@ const departmentBars = computed(() =>
               <span role="cell">
                 <SlaCell
                   :priority="ticket.priority"
-                  :age-minutes="minutesSince(ticket.createdAt)"
+                  :age-minutes="minutesSince(ticket.createdAt, current)"
                 />
               </span>
             </div>

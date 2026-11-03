@@ -30,7 +30,7 @@ def data_dir(tmp_path: Path) -> Path:
 
 
 def test_e0_03_carga_el_historico_como_resuelto(db: Session, data_dir: Path) -> None:
-    added = seed_full(db, NOW.tzinfo, data_dir)  # pyright: ignore[reportArgumentType]
+    added = seed_full(db, NOW.tzinfo, data_dir, NOW)  # pyright: ignore[reportArgumentType]
 
     # 50 filas: una repite ID y otra es TCK-115796, que ya trae la semilla demo.
     assert added == 48
@@ -40,7 +40,7 @@ def test_e0_03_carga_el_historico_como_resuelto(db: Session, data_dir: Path) -> 
 
 
 def test_e0_03_calcula_la_fecha_de_resolucion(db: Session, data_dir: Path) -> None:
-    seed_full(db, NOW.tzinfo, data_dir)  # pyright: ignore[reportArgumentType]
+    seed_full(db, NOW.tzinfo, data_dir, NOW)  # pyright: ignore[reportArgumentType]
 
     ticket = db.get(Ticket, "TCK-197414")
     assert ticket is not None
@@ -55,7 +55,7 @@ def test_e0_03_calcula_la_fecha_de_resolucion(db: Session, data_dir: Path) -> No
 
 
 def test_e0_03_conserva_la_version_demo_de_un_id_repetido(db: Session, data_dir: Path) -> None:
-    seed_full(db, NOW.tzinfo, data_dir)  # pyright: ignore[reportArgumentType]
+    seed_full(db, NOW.tzinfo, data_dir, NOW)  # pyright: ignore[reportArgumentType]
 
     ticket = db.get(Ticket, "TCK-115796")
     assert ticket is not None
@@ -66,15 +66,15 @@ def test_e0_03_conserva_la_version_demo_de_un_id_repetido(db: Session, data_dir:
 
 
 def test_e0_03_se_puede_repetir_sin_duplicar(db: Session, data_dir: Path) -> None:
-    seed_full(db, NOW.tzinfo, data_dir)  # pyright: ignore[reportArgumentType]
-    seed_full(db, NOW.tzinfo, data_dir)  # pyright: ignore[reportArgumentType]
+    seed_full(db, NOW.tzinfo, data_dir, NOW)  # pyright: ignore[reportArgumentType]
+    seed_full(db, NOW.tzinfo, data_dir, NOW)  # pyright: ignore[reportArgumentType]
 
     assert db.scalar(select(func.count()).select_from(Ticket)) == 57
 
 
 def test_e0_03_avisa_si_falta_el_csv(db: Session, tmp_path: Path) -> None:
     with pytest.raises(MissingDatasetError, match=r"No se encontró .*tickets_soporte_procesado"):
-        seed_full(db, NOW.tzinfo, tmp_path)  # pyright: ignore[reportArgumentType]
+        seed_full(db, NOW.tzinfo, tmp_path, NOW)  # pyright: ignore[reportArgumentType]
 
 
 def test_e0_03_el_comando_informa_cuantos_cargo(
