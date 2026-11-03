@@ -27,6 +27,7 @@ class UserOut(ApiModel):
     username: str
     role: Literal["tecnico", "coordinador", "auditor"]
     active: bool
+    must_change_password: bool = False
 
 
 class LoginResponse(ApiModel):

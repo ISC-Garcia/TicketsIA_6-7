@@ -35,7 +35,13 @@ def test_e1_01_cada_usuario_demo_entra_con_su_rol(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["user"] == {"name": name, "username": username, "role": role, "active": True}
+    assert body["user"] == {
+        "name": name,
+        "username": username,
+        "role": role,
+        "active": True,
+        "mustChangePassword": False,
+    }
     assert isinstance(body["token"], str)
 
 
