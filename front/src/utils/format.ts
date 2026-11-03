@@ -25,3 +25,5 @@ export function formatMinutes(minutes: number): string {
   if (rounded < 10080) return `${hours} h`
   return `${days} d`
 }
+
+export const formatTicketCount = (count: number) => (count === 1 ? '1 ticket' : `${count} tickets`)

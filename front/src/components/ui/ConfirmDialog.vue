@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, useId, useTemplateRef } from 'vue'
+import { useId, useTemplateRef } from 'vue'
+
+import { useModalDialog } from '@/composables/useModalDialog'
 
 import BaseButton from './BaseButton.vue'
 
@@ -14,14 +16,12 @@ withDefaults(
   { danger: false, size: 'sm' },
 )
 
-defineEmits<{ confirm: []; cancel: [] }>()
+const emit = defineEmits<{ confirm: []; cancel: [] }>()
 
 const titleId = useId()
 const dialog = useTemplateRef<HTMLDialogElement>('dialog')
-
-// showModal atrapa el foco, cierra con Escape y devuelve el foco al cerrar.
-onMounted(() => dialog.value?.showModal())
-onBeforeUnmount(() => dialog.value?.close())
+// Como en el prototipo, la confirmación no se cierra con un clic en el fondo.
+const { onCancel } = useModalDialog(dialog, () => emit('cancel'))
 </script>
 
 <template>
@@ -30,7 +30,7 @@ onBeforeUnmount(() => dialog.value?.close())
     class="confirm"
     :class="`confirm--${size}`"
     :aria-labelledby="titleId"
-    @cancel.prevent="$emit('cancel')"
+    @cancel="onCancel"
   >
     <h2 :id="titleId" class="confirm__title">{{ title }}</h2>
     <p v-if="body" class="confirm__body">{{ body }}</p>

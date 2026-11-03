@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { listBackups, listTables } from '../database'
 import { listEvents, listTicketEvents } from '../events'
 import { mockRequest, paginate, ServiceError, setMockFailure } from '../mockRequest'
-import { getTicket, listTickets } from '../tickets'
+import { countTicketsByPriority, getTicket, listTickets } from '../tickets'
 import { listUsers } from '../users'
 import { minutesSince } from '@/utils/clock'
 
@@ -104,6 +104,16 @@ describe('listTickets', () => {
       'TCK-200025': 1800,
       'TCK-200029': 3120,
     })
+  })
+})
+
+describe('countTicketsByPriority', () => {
+  it('cuenta los tickets activos por prioridad', async () => {
+    expect(await countTicketsByPriority()).toEqual({ Crítica: 2, Alta: 2, Media: 2, Baja: 2 })
+  })
+
+  it('cuenta los resueltos por separado', async () => {
+    expect(await countTicketsByPriority(true)).toEqual({ Crítica: 0, Alta: 1, Media: 0, Baja: 0 })
   })
 })
 

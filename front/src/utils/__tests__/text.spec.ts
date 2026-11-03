@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatLongDate, formatMinutes } from '../format'
+import { formatLongDate, formatMinutes, formatTicketCount } from '../format'
 import { initialsOf } from '../initials'
 
 describe('initialsOf', () => {
@@ -37,5 +37,15 @@ describe('formatMinutes', () => {
     [20000, '13 d'],
   ])('%s minutos dan %s', (minutes, expected) => {
     expect(formatMinutes(minutes)).toBe(expected)
+  })
+})
+
+describe('formatTicketCount', () => {
+  it.each([
+    [0, '0 tickets'],
+    [1, '1 ticket'],
+    [8, '8 tickets'],
+  ])('%s da %s', (count, expected) => {
+    expect(formatTicketCount(count)).toBe(expected)
   })
 })

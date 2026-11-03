@@ -1,7 +1,7 @@
 import { tickets } from '@/mocks/tickets'
 import type { Page } from '@/types/page'
 import { PRIORITIES } from '@/types/ticket'
-import type { Ticket, TicketDateFilter, TicketQuery } from '@/types/ticket'
+import type { Priority, Ticket, TicketDateFilter, TicketQuery } from '@/types/ticket'
 import { minutesSince, now, toDateKey } from '@/utils/clock'
 
 import { mockRequest, paginate } from './mockRequest'
@@ -46,6 +46,19 @@ export function listTickets(query: TicketQuery = {}): Promise<Page<Ticket>> {
       .sort(byUrgency)
 
     return paginate(items, page, pageSize)
+  })
+}
+
+// Los conteos de las pestañas de prioridad ignoran los demás filtros, como en el prototipo.
+export function countTicketsByPriority(resolved = false): Promise<Record<Priority, number>> {
+  return mockRequest(() => {
+    const counts = Object.fromEntries(PRIORITIES.map((priority) => [priority, 0]))
+
+    for (const ticket of tickets) {
+      if ((ticket.status === 'Resuelto') === resolved) counts[ticket.priority]! += 1
+    }
+
+    return counts as Record<Priority, number>
   })
 }
 
