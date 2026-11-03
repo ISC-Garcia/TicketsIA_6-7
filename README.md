@@ -242,6 +242,8 @@ Las pruebas usan `TEST_DATABASE_URL`: borran esa base y la migran desde cero al 
 | `POST` | `/api/tickets/{id}/resolve` | Técnico asignado | Resuelve un ticket En atención con `solution` (10 caracteres o más) y `resolutionHours` (más de 0); registra "Ticket resuelto" |
 | `GET` | `/api/technicians` | Coordinador | Técnicos activos con su número de tickets sin resolver |
 | `POST` | `/api/tickets/{id}/assign` | Coordinador | Reasigna un ticket sin resolver a un técnico activo (`technician`); registra "Reasignación" |
+| `PATCH` | `/api/tickets/{id}/resolution` | Quien lo resolvió | Corrige `solution` o `resolutionHours` de un ticket resuelto; registra "Edición de datos" posterior al cierre |
+| `GET` | `/api/dashboard` | Coordinador | KPI, tickets por prioridad y departamento, tendencia (`period`: `semana`, `mes` o `año`; solo cambia la tendencia), tiempo promedio contra SLA y críticos sin resolver |
 
 Las respuestas usan los nombres de campo de `front/src/types/` y las fechas en hora local de la mesa de ayuda (`TIMEZONE`), sin zona, como `2026-10-28 09:57`. Los tickets históricos no traen `technician` ni `analysis`.
 
