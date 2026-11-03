@@ -1,8 +1,11 @@
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import Engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.config import BACK_DIR
 from tests.factories import make_ticket
 
 
@@ -20,7 +23,8 @@ def test_e0_02_la_base_queda_en_la_ultima_migracion(migrated: Engine) -> None:
     with migrated.connect() as connection:
         version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
 
-    assert version == "0001"
+    head = ScriptDirectory.from_config(Config(BACK_DIR / "alembic.ini")).get_current_head()
+    assert version == head
 
 
 @pytest.mark.parametrize(

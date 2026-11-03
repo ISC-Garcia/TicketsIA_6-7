@@ -17,4 +17,6 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(120))
     role: Mapped[str] = mapped_column(String(20))
     active: Mapped[bool] = mapped_column(default=True)
+    # Hash argon2. Un usuario sin hash no puede iniciar sesión.
+    password_hash: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

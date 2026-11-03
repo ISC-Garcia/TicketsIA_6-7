@@ -11,9 +11,12 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 
 from app.models import Event, Ticket, User
+from app.security import hash_password
 from app.seeds import clear, local_time
 
 DATA_FILE = Path(__file__).with_name("demo.json")
+# Contraseña de las cuentas de demostración, la misma que muestran los accesos demo del login.
+DEMO_PASSWORD = "demo2026"
 
 
 def load_data() -> dict[str, list[dict[str, Any]]]:
@@ -25,8 +28,15 @@ def seed_demo(session: Session, zone: ZoneInfo) -> None:
     clear(session)
 
     usernames = {user["name"]: user["username"] for user in data["users"]}
+    password_hash = hash_password(DEMO_PASSWORD)
     session.add_all(
-        User(username=user["username"], name=user["name"], role=user["role"], active=user["active"])
+        User(
+            username=user["username"],
+            name=user["name"],
+            role=user["role"],
+            active=user["active"],
+            password_hash=password_hash,
+        )
         for user in data["users"]
     )
     session.flush()
