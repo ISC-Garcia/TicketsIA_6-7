@@ -26,6 +26,10 @@ PERMISSIONS: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("POST", "/api/auth/logout"): ANY_ROLE,
     ("GET", "/api/auth/me"): ANY_ROLE,
     ("GET", "/api/model/info"): ANY_ROLE,
+    ("GET", "/api/tickets"): ("tecnico", "coordinador"),
+    ("GET", "/api/tickets/counts"): ("tecnico", "coordinador"),
+    ("GET", "/api/tickets/{ticket_id}"): ANY_ROLE,
+    ("GET", "/api/tickets/{ticket_id}/events"): ANY_ROLE,
     # Solo existe con APP_ENV=test (ver test_testing.py).
     ("POST", "/api/test/reset"): PUBLIC,
     ("PATCH", "/api/test/users/{username}"): PUBLIC,
@@ -47,6 +51,7 @@ def test_e1_02_cada_endpoint_responde_segun_el_rol(
 ) -> None:
     allowed = PERMISSIONS[(method, path)]
 
+    path = path.replace("{ticket_id}", "TCK-200003").replace("{username}", "auditor")
     anonymous = client.request(method, path)
     if allowed == PUBLIC:
         assert anonymous.status_code not in (401, 403)

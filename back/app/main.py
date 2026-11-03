@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import Settings, get_settings
 from app.errors import install_error_handlers
 from app.ml.model import load_model
-from app.routers import auth, health, model, testing
+from app.routers import auth, health, model, testing, tickets
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -35,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(model.router)
+    app.include_router(tickets.router)
     if settings.app_env == "test":
         app.include_router(testing.router)
     return app
