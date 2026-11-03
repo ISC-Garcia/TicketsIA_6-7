@@ -8,6 +8,7 @@ from app.db import DbDep
 from app.models import User
 from app.schemas import ApiModel
 from app.seeds.demo import seed_demo
+from app.services.backups import run_backup
 
 router = APIRouter(prefix="/api/test", tags=["pruebas"])
 
@@ -43,4 +44,11 @@ def tamper_ticket(ticket_id: str, db: DbDep) -> Response:
     if not changed.rowcount:  # pyright: ignore[reportAttributeAccessIssue]
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado.")
     db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/backup", status_code=status.HTTP_204_NO_CONTENT)
+def backup(db: DbDep, settings: SettingsDep) -> Response:
+    """Ejecuta un respaldo real, como `app.cli backup`, para que la E2E lo vea en la lista."""
+    run_backup(db, settings)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

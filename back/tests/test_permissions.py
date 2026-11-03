@@ -52,6 +52,7 @@ PERMISSIONS: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("POST", "/api/test/reset"): PUBLIC,
     ("PATCH", "/api/test/users/{username}"): PUBLIC,
     ("POST", "/api/test/tamper/{ticket_id}"): PUBLIC,
+    ("POST", "/api/test/backup"): PUBLIC,
 }
 
 
