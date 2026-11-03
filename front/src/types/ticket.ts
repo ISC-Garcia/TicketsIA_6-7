@@ -44,11 +44,12 @@ export interface Ticket {
   status: TicketStatus
   createdAt: string
   reporter: string
-  technician: string
+  // Los tickets históricos del dataset no tienen técnico ni análisis del modelo.
+  technician?: string
   summary: string
   description: string
   highlights: string[]
-  analysis: Analysis
+  analysis?: Analysis
   resolutionHours?: number
   resolvedAt?: string
   resolvedBy?: string

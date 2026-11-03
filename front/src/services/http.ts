@@ -43,14 +43,20 @@ export function buildUrl(path: string, query: Query = {}) {
   return url
 }
 
-async function errorDetail(response: Response) {
+// La API siempre responde sus errores en JSON. Un error sin JSON viene de otro lado, como el
+// proxy de Vite con el back apagado (502) o un servidor que no conoce /api (404): para quien
+// usa el sistema es lo mismo que no poder conectarse.
+async function failure(response: Response) {
+  if (!response.headers.get('content-type')?.includes('application/json')) {
+    return new ServiceError(CONNECTION_ERROR)
+  }
   try {
     const body = await response.json()
-    if (typeof body?.detail === 'string') return body.detail
+    if (typeof body?.detail === 'string') return new ServiceError(body.detail, response.status)
   } catch {
-    // La respuesta no traía JSON: se usa el mensaje genérico.
+    // JSON inválido: se usa el mensaje genérico.
   }
-  return UNEXPECTED_ERROR
+  return new ServiceError(UNEXPECTED_ERROR, response.status)
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -71,8 +77,9 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   if (!response.ok) {
-    if (response.status === 401 && token) onUnauthorized?.()
-    throw new ServiceError(await errorDetail(response), response.status)
+    const error = await failure(response)
+    if (error.status === 401 && token) onUnauthorized?.()
+    throw error
   }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>

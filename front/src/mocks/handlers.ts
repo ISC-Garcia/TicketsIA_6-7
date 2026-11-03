@@ -153,13 +153,18 @@ export const handlers = [
     return HttpResponse.json({ detail: 'Ticket no encontrado.' }, { status: 404 })
   }),
 
-  http.get('*/api/tickets/:id/events', ({ params }) =>
-    respond(() =>
+  // Igual que la API: el historial de un ticket que no existe responde 404.
+  http.get('*/api/tickets/:id/events', async ({ params }) => {
+    if (!failing && !tickets.some((ticket) => ticket.id === params.id)) {
+      await delay(LATENCY_MS)
+      return HttpResponse.json({ detail: 'Ticket no encontrado.' }, { status: 404 })
+    }
+    return respond(() =>
       events
         .filter((event) => event.ticketId === params.id)
         .sort((a, b) => a.time.localeCompare(b.time)),
-    ),
-  ),
+    )
+  }),
 
   http.get('*/api/events', ({ request }) => {
     const params = new URL(request.url).searchParams

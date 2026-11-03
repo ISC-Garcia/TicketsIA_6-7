@@ -2,6 +2,8 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { RouteLocationRaw } from 'vue-router'
 
+import { lastVisitTo } from '@/router/lastVisited'
+
 export interface Breadcrumb {
   label: string
   to?: RouteLocationRaw
@@ -18,7 +20,7 @@ export function useBreadcrumbs() {
     if (meta.parent) {
       const parent = { name: meta.parent }
       return [
-        { label: router.resolve(parent).meta.title ?? '', to: parent },
+        { label: router.resolve(parent).meta.title ?? '', to: lastVisitTo(meta.parent) },
         { label: String(params.id), mono: true },
       ]
     }

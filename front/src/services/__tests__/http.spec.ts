@@ -88,12 +88,42 @@ describe('request', () => {
     expect(error.status).toBe(404)
   })
 
-  it('usa un mensaje genérico si el error no trae detalle', async () => {
-    server.use(http.get('*/api/eco', () => new HttpResponse('falla', { status: 500 })))
+  it('usa un mensaje genérico si el error JSON no trae detalle', async () => {
+    server.use(http.get('*/api/eco', () => HttpResponse.json({ otro: 1 }, { status: 500 })))
+
+    const error = (await request('/api/eco').catch((caught) => caught)) as ServiceError
+
+    expect(error.message).toBe('El servidor respondió con un error inesperado.')
+    expect(error.status).toBe(500)
+  })
+
+  it('usa un mensaje genérico si el JSON del error no se puede leer', async () => {
+    server.use(
+      http.get(
+        '*/api/eco',
+        () =>
+          new HttpResponse('{roto', {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+      ),
+    )
 
     await expect(request('/api/eco')).rejects.toThrow(
       'El servidor respondió con un error inesperado.',
     )
+  })
+
+  it.each([
+    [502, 'el proxy de Vite con el back apagado'],
+    [404, 'un servidor que no conoce /api'],
+  ])('un %i sin JSON (%s) es un error de conexión', async (status) => {
+    server.use(http.get('*/api/eco', () => new HttpResponse('Bad Gateway', { status })))
+
+    const error = (await request('/api/eco').catch((caught) => caught)) as ServiceError
+
+    expect(error.message).toBe(CONNECTION_ERROR)
+    expect(error.status).toBeUndefined()
   })
 
   it('convierte una falla de red en el error de conexión', async () => {

@@ -8,6 +8,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import PaginationBar from '@/components/ui/PaginationBar.vue'
 import { ServiceError } from '@/services/http'
 import { countTicketsByPriority, listTickets } from '@/services/tickets'
 import { DEPARTMENTS, PRIORITIES, TICKET_STATUSES } from '@/types/ticket'
@@ -25,9 +26,14 @@ const DATE_OPTIONS: { value: TicketDateFilter; label: string }[] = [
   { value: '7', label: 'Últimos 7 días' },
 ]
 
+// Con los tickets abiertos cabe todo en una página, como en el prototipo. La paginación
+// aparece al consultar los resueltos, que son decenas de miles.
+const PAGE_SIZE = 25
+
 const router = useRouter()
 
 const tickets = ref<Ticket[]>([])
+const total = ref(0)
 const counts = ref(
   Object.fromEntries(PRIORITIES.map((priority) => [priority, 0])) as Record<Priority, number>,
 )
@@ -44,11 +50,12 @@ async function load() {
 
   try {
     const [page, totals] = await Promise.all([
-      listTickets(props.filters),
+      listTickets({ ...props.filters, pageSize: PAGE_SIZE }),
       countTicketsByPriority(props.filters.status === 'Resuelto'),
     ])
     if (request !== lastRequest) return
     tickets.value = page.items
+    total.value = page.total
     counts.value = totals
   } catch (cause) {
     if (request !== lastRequest) return
@@ -60,9 +67,16 @@ async function load() {
 
 watch(() => props.filters, load, { immediate: true })
 
+// Cambiar un filtro vuelve a la primera página.
 function update(changes: TicketFilters) {
-  router.replace({ query: ticketFiltersToQuery({ ...props.filters, ...changes }) })
+  const page = 'page' in changes ? changes.page : undefined
+  router.replace({ query: ticketFiltersToQuery({ ...props.filters, ...changes, page }) })
 }
+
+const page = computed({
+  get: () => props.filters.page ?? 1,
+  set: (value: number) => update({ page: value }),
+})
 
 // La búsqueda se guarda aparte para no reescribir el campo mientras se escribe.
 // Solo se sincroniza desde la URL cuando los filtros se limpian.
@@ -102,7 +116,7 @@ const date = computed({
 
 const hasFilters = computed(() => hasTicketFilters(props.filters))
 const firstLoad = computed(() => loading.value && !tickets.value.length)
-const rowCount = computed(() => formatTicketCount(tickets.value.length))
+const rowCount = computed(() => formatTicketCount(total.value))
 </script>
 
 <template>
@@ -164,6 +178,13 @@ const rowCount = computed(() => formatTicketCount(tickets.value.length))
         />
       </template>
     </TicketTable>
+    <PaginationBar
+      v-if="!error && !firstLoad && total > PAGE_SIZE"
+      v-model:page="page"
+      :page-size="PAGE_SIZE"
+      :total="total"
+      class="inbox__pagination"
+    />
   </div>
 </template>
 
@@ -194,6 +215,10 @@ const rowCount = computed(() => formatTicketCount(tickets.value.length))
   align-items: center;
   gap: 10px;
   margin-bottom: 14px;
+}
+
+.inbox__pagination {
+  margin-top: 12px;
 }
 
 .inbox__search {

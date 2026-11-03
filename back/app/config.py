@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     def now(self) -> datetime:
         return self.app_now or datetime.now(self.zone)
 
+    def local(self, moment: datetime, seconds: bool = True) -> str:
+        """Hora local de la mesa de ayuda, sin zona, en el formato que muestra el front."""
+        pattern = "%Y-%m-%d %H:%M:%S" if seconds else "%Y-%m-%d %H:%M"
+        return moment.astimezone(self.zone).strftime(pattern)
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -19,7 +19,7 @@ const details = computed(() => {
     ['Reportado por', ticket.reporter],
     ['Dispositivo afectado', ticket.device],
     ['Departamento', ticket.department],
-    ['Técnico asignado', ticket.technician],
+    ['Técnico asignado', ticket.technician ?? 'Sin asignar'],
     ['Fecha de registro', ticket.createdAt],
     ['Antigüedad', formatMinutes(minutesSince(ticket.createdAt))],
   ]
