@@ -57,13 +57,15 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'general',
         name: 'general',
-        component: placeholder,
+        component: () => import('@/views/InboxView.vue'),
+        props: (route) => ({ filters: parseTicketFilters(route.query), mode: 'coordinador' }),
         meta: { roles: ['coordinador'], title: 'Bandeja general' },
       },
       {
         path: 'general/:id',
         name: 'general-detalle',
-        component: placeholder,
+        component: () => import('@/views/TicketDetailView.vue'),
+        props: true,
         meta: { roles: ['coordinador'], title: 'Detalle de ticket', parent: 'general' },
       },
       {

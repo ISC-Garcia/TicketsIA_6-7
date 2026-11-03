@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { h } from 'vue'
 import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 
@@ -8,6 +9,7 @@ import { http, HttpResponse } from 'msw'
 import { setMockFailure } from '@/mocks/handlers'
 import { server } from '@/mocks/server'
 import { tickets } from '@/mocks/tickets'
+import { useToastStore } from '@/stores/toast'
 import { parseTicketFilters } from '@/utils/ticketFilters'
 
 import InboxView from '../InboxView.vue'
@@ -19,6 +21,7 @@ async function settle() {
 }
 
 async function mountInbox(path = '/bandeja') {
+  setActivePinia(createPinia())
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -29,6 +32,13 @@ async function mountInbox(path = '/bandeja') {
         props: (route) => ({ filters: parseTicketFilters(route.query) }),
       },
       { path: '/bandeja/:id', name: 'bandeja-detalle', component: { render: () => h('div') } },
+      {
+        path: '/general',
+        name: 'general',
+        component: InboxView,
+        props: (route) => ({ filters: parseTicketFilters(route.query), mode: 'coordinador' }),
+      },
+      { path: '/general/:id', name: 'general-detalle', component: { render: () => h('div') } },
     ],
   })
   await router.push(path)
@@ -211,6 +221,107 @@ describe('InboxView', () => {
       const { wrapper } = await mountInbox()
 
       expect(wrapper.find('nav[aria-label="Paginación"]').exists()).toBe(false)
+    })
+  })
+
+  describe('E4-05: bandeja general del coordinador', () => {
+    const headers = (wrapper: Awaited<ReturnType<typeof mountInbox>>['wrapper']) =>
+      wrapper.findAll('[role="columnheader"]').map((header) => header.text())
+
+    it('muestra el técnico asignado en lugar del área y abre su propio detalle', async () => {
+      const { wrapper, router } = await mountInbox('/general')
+
+      expect(wrapper.find('h1').text()).toBe('Bandeja general')
+      expect(headers(wrapper)).toEqual([
+        'ID',
+        'Prioridad',
+        'Resumen',
+        'Departamento',
+        'Técnico asignado',
+        'Estado',
+        'Antigüedad',
+        'Tiempo restante de SLA',
+        'Acciones',
+      ])
+      expect(wrapper.find('[role="rowgroup"]:last-child [role="row"]').text()).toContain(
+        'Roberto García',
+      )
+
+      await wrapper.find('[role="rowgroup"]:last-child [role="row"]').trigger('click')
+      await settle()
+      expect(router.currentRoute.value.name).toBe('general-detalle')
+    })
+
+    it('el menú de acciones no abre el detalle y se cierra con Escape', async () => {
+      const { wrapper, router } = await mountInbox('/general')
+      const trigger = wrapper.find('button[aria-label="Acciones de TCK-200007"]')
+
+      await trigger.trigger('click')
+      expect(router.currentRoute.value.name).toBe('general')
+      expect(trigger.attributes('aria-expanded')).toBe('true')
+      expect(wrapper.find('[role="menuitem"]').text()).toBe('Reasignar')
+
+      await wrapper.find('[role="menu"]').trigger('keydown', { key: 'Escape' })
+      expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+    })
+
+    it('reasigna a otro técnico, avisa y recarga la bandeja', async () => {
+      const { wrapper } = await mountInbox('/general')
+      await wrapper.find('button[aria-label="Acciones de TCK-200007"]').trigger('click')
+      await wrapper.find('[role="menuitem"]').trigger('click')
+      await settle()
+
+      const modal = wrapper.find('dialog')
+      const options = modal.findAll('[role="radio"]')
+      expect(options.map((option) => option.text())).toEqual([
+        'Roberto García Hernández3 tickets abiertos Actual',
+        'Sarely Xala Hernández5 tickets abiertos',
+      ])
+      const confirm = modal.findAll('button').find((button) => button.text() === 'Reasignar')!
+      expect(confirm.attributes('disabled')).toBeDefined()
+
+      await options[0]!.trigger('keydown', { key: 'ArrowDown' })
+      expect(options[1]!.attributes('aria-checked')).toBe('true')
+      await confirm.trigger('click')
+      await settle()
+      await settle()
+
+      expect(wrapper.find('dialog').exists()).toBe(false)
+      expect(useToastStore().current).toMatchObject({
+        message: 'Técnico reasignado',
+        detail: 'TCK-200007, ahora con Sarely Xala Hernández',
+      })
+      expect(wrapper.find('[role="rowgroup"]:last-child [role="row"]').text()).toContain(
+        'Sarely Xala',
+      )
+    })
+
+    it('muestra el error si la API rechaza la reasignación', async () => {
+      server.use(
+        http.post('*/api/tickets/:id/assign', () =>
+          HttpResponse.json({ detail: 'Elige un técnico activo.' }, { status: 422 }),
+        ),
+      )
+      const { wrapper } = await mountInbox('/general')
+      await wrapper.find('button[aria-label="Acciones de TCK-200007"]').trigger('click')
+      await wrapper.find('[role="menuitem"]').trigger('click')
+      await settle()
+
+      await wrapper.find('dialog').findAll('[role="radio"]')[1]!.trigger('click')
+      await wrapper
+        .find('dialog')
+        .findAll('button')
+        .find((b) => b.text() === 'Reasignar')!
+        .trigger('click')
+      await settle()
+
+      expect(wrapper.find('dialog [role="alert"]').text()).toBe('Elige un técnico activo.')
+    })
+
+    it('los resueltos no tienen menú de acciones', async () => {
+      const { wrapper } = await mountInbox('/general?estado=Resuelto')
+
+      expect(wrapper.find('button[aria-haspopup="menu"]').exists()).toBe(false)
     })
   })
 })
