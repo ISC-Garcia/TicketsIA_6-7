@@ -41,6 +41,8 @@ uv run python -m app.ml.train            # unos 2 min
 uv run python -m app.cli seed completo   # unos 30 s; para algo más ligero: seed demo
 ```
 
+La semilla mueve sus fechas a la hora en que la cargas: los tickets abiertos llegan con unas horas de antigüedad. Si la cargaste hace días, todo aparecerá vencido; vuelve a cargarla para empezar de nuevo.
+
 **5. Iniciar la API** (deja esta terminal abierta):
 
 ```sh
@@ -64,7 +66,7 @@ npm run dev
 | `tecnico` | Técnico (Roberto García) | Registrar, atender y resolver sus tickets |
 | `sxala` | Técnico (Sarely Xala) | Lo mismo, con sus propios tickets |
 | `coordinador` | Coordinador | Bandeja general y reasignación |
-| `auditor` | Auditor | Monitoreo, bitácora e historial (en construcción) |
+| `auditor` | Auditor | Monitoreo de PostgreSQL, bitácora e historial |
 
 **8. Correr las pruebas:**
 
@@ -84,7 +86,9 @@ Las E2E usan los puertos 8100 y 5180 y la base `tickets_e2e`, así que pueden co
 - **"No se pudo conectar con el servidor." en el login:** la API no está corriendo en el puerto 8000 (paso 5). Si acabas de cambiar de rama, reinicia también `npm run dev`.
 - **"El modelo de clasificación no está disponible" al registrar:** falta el modelo, o es de otra versión. Repite `uv run python -m app.ml.train`.
 - **Las E2E fallan al conectar con `tickets_e2e`:** tu volumen se creó antes de que existiera esa base. Créala una vez con `docker compose exec db psql -U tickets -c "CREATE DATABASE tickets_e2e"`.
-- **Después de hacer `git pull`:** corre de nuevo `uv sync`, `uv run alembic upgrade head` y `npm install`.
+- **Después de hacer `git pull`:** corre de nuevo `uv sync`, `uv run alembic upgrade head` y `npm install`. Si cambió `compose.yaml`, recrea la base con `docker compose up -d` (los datos se conservan).
+- **La API no arranca y dice "APP_NOW solo se permite con APP_ENV=test":** tu `back/.env` es de una versión anterior. Borra la línea `APP_NOW`.
+- **Monitoreo dice que pg_stat_statements no está activa:** la base se levantó antes de que `compose.yaml` la activara. Recréala con `docker compose up -d`.
 
 ## Front
 
@@ -115,11 +119,9 @@ En desarrollo el front llama a `/api` en su propio origen y Vite lo reenvía a `
 | Variable | Qué hace |
 | --- | --- |
 | `VITE_API_URL` | URL de la API en producción. Vacía en desarrollo |
-| `VITE_API_MOCK` | `true` para trabajar sin back: [MSW](https://mswjs.io/) responde con los datos de `src/mocks/` |
-| `VITE_MOCK_FAILURE` | Con `VITE_API_MOCK=true`, hace fallar todas las llamadas para probar los estados de error |
 | `VITE_DEMO_MODE` | Muestra los accesos de demostración en el login |
 
-Las pruebas unitarias usan siempre MSW: no necesitan el back.
+El front siempre habla con la API real y toma su hora de `GET /api/health` al arrancar, así que la fecha, la antigüedad y el SLA coinciden con los del servidor. Solo las pruebas unitarias usan [MSW](https://mswjs.io/) con los datos de `src/mocks/` y una hora fija: no necesitan el back.
 
 Si el login dice "No se pudo conectar con el servidor.", la API no está corriendo en el puerto 8000 (`uv run fastapi dev app/main.py` en `back/`). Después de actualizar la rama, reinicia `npm run dev` para que tome los cambios de `vite.config.ts`.
 
@@ -159,7 +161,7 @@ Requiere [uv](https://docs.astral.sh/uv/) y Docker o Podman. uv instala Python 3
 | `app/seeds/` | Semillas `demo` y `completo` |
 | `app/cli.py` | Comandos de mantenimiento |
 | `migrations/` | Migraciones de Alembic |
-| `compose.yaml` | PostgreSQL 17 con las bases `tickets`, `tickets_test` (pytest) y `tickets_e2e` (Playwright) |
+| `compose.yaml` | PostgreSQL 17 con las bases `tickets`, `tickets_test` (pytest) y `tickets_e2e` (Playwright), y `pg_stat_statements` activa para el monitoreo |
 | `tests/` | Pruebas con pytest contra la base `tickets_test` |
 
 ### Configuración
@@ -177,12 +179,13 @@ uv run alembic upgrade head
 | `DATABASE_URL` | Conexión a PostgreSQL. Es obligatoria: la API no arranca sin ella |
 | `TEST_DATABASE_URL` | Base de las pruebas. Debe ser distinta de `DATABASE_URL` |
 | `APP_ENV` | `development`, `test` o `production`. En producción no se pueden cargar semillas |
-| `APP_NOW` | Hora fija de la demo (`2026-10-28T11:42:10-06:00`), la misma que usa el front. Vacía para usar el reloj real |
+| `APP_NOW` | Hora fija, solo con `APP_ENV=test`: la usan pytest y las E2E para obtener siempre los mismos resultados. En desarrollo y producción la API usa el reloj real |
 | `TIMEZONE` | Zona horaria de la mesa de ayuda, `America/Mexico_City` por omisión |
 | `DATA_DIR`, `MODEL_PATH` | Carpeta del dataset y ruta del modelo. Por omisión, `back/datos/` |
 | `CORS_ORIGINS` | Orígenes que pueden llamar a la API, en JSON |
 | `JWT_SECRET` | Clave que firma las sesiones, de al menos 32 caracteres. Obligatoria |
 | `SESSION_HOURS` | Horas que dura una sesión, 8 por omisión |
+| `MONITOR_INTERVAL_MINUTES` | Cada cuántos minutos la API guarda una muestra de PostgreSQL para las gráficas del monitoreo, 5 por omisión. Con 0 no guarda |
 
 ### Datos y modelo
 
@@ -249,6 +252,7 @@ Las pruebas usan `TEST_DATABASE_URL`: borran esa base y la migran desde cero al 
 | `GET` | `/api/users` | Coordinador | Usuarios con su rol y estado |
 | `POST` | `/api/users` | Coordinador | Crea un usuario (`name`, `username` con `^[a-z0-9._]{3,}$`, `role`, `password` temporal de 8 caracteres o más) |
 | `PATCH` | `/api/users/{username}` | Coordinador | Activa o desactiva una cuenta (`active`); nadie se desactiva a sí mismo |
+| `GET` | `/api/database/status` | Auditor | Estado real de PostgreSQL: servidor, tiempo activo, conexiones, latencia, consultas por minuto, tamaño, aciertos de caché, gráficas por `period` (`24h`, `semana` o `mes`) y consultas lentas de `pg_stat_statements` |
 | `GET` | `/api/events` | Auditor | Bitácora del más reciente al más antiguo, de 10 en 10. Filtra por `type`, `user`, `date` (`hoy` o `7`), `ticketId` exacto y `afterClose`. Trae además `afterCloseTotal` y los `users` que aparecen en ella |
 
 Las respuestas usan los nombres de campo de `front/src/types/` y las fechas en hora local de la mesa de ayuda (`TIMEZONE`), sin zona, como `2026-10-28 09:57`. Los tickets históricos no traen `technician` ni `analysis`.
