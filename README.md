@@ -42,6 +42,8 @@ En desarrollo el front llama a `/api` en su propio origen y Vite lo reenvía a `
 
 Las pruebas unitarias usan siempre MSW: no necesitan el back.
 
+Si el login dice "No se pudo conectar con el servidor.", la API no está corriendo en el puerto 8000 (`uv run fastapi dev app/main.py` en `back/`). Después de actualizar la rama, reinicia `npm run dev` para que tome los cambios de `vite.config.ts`.
+
 ### Pruebas E2E
 
 `npm run test:e2e` levanta la API con `APP_ENV=test` en el puerto 8100 contra la base `tickets_e2e`, levanta el front en el 5180 y corre Playwright en Chromium y Firefox. Antes de cada prueba la API recarga la semilla demo. Necesita PostgreSQL arriba (`back/compose.yaml`) y, la primera vez, los navegadores:
@@ -74,7 +76,7 @@ Requiere [uv](https://docs.astral.sh/uv/) y Docker o Podman. uv instala Python 3
 | `app/config.py` | Configuración leída de variables de entorno o de `.env` |
 | `app/models/` | Tablas `users`, `tickets` y `events` |
 | `app/routers/` | Endpoints de la API |
-| `app/ml/` | Generación del dataset, limpieza, entrenamiento y carga del modelo |
+| `app/ml/` | Generación del dataset, limpieza, entrenamiento, carga del modelo y PNL (`pnl.py`: dispositivos, códigos de error, palabras clave e intención) |
 | `app/seeds/` | Semillas `demo` y `completo` |
 | `app/cli.py` | Comandos de mantenimiento |
 | `migrations/` | Migraciones de Alembic |
@@ -151,6 +153,12 @@ Las pruebas usan `TEST_DATABASE_URL`: borran esa base y la migran desde cero al 
 | `POST` | `/api/auth/logout` | Con sesión | Registra "Cierre de sesión" |
 | `GET` | `/api/auth/me` | Con sesión | Usuario de la sesión |
 | `GET` | `/api/model/info` | Con sesión | Si el modelo está cargado, cuándo se entrenó, con qué versión y su exactitud |
+| `GET` | `/api/tickets` | Técnico, coordinador | Bandeja: filtros `priority`, `department`, `status`, `date` (`hoy`, `48`, `7`) y `search`; `page` y `pageSize` (25 por omisión, máximo 100). Ordena por prioridad y antigüedad. Sin `status` excluye los resueltos |
+| `GET` | `/api/tickets/counts` | Técnico, coordinador | Tickets por prioridad; `resolved=true` cuenta los resueltos |
+| `GET` | `/api/tickets/{id}` | Con sesión | Detalle de un ticket |
+| `GET` | `/api/tickets/{id}/events` | Con sesión | Historial del ticket en orden cronológico |
+
+Las respuestas usan los nombres de campo de `front/src/types/` y las fechas en hora local de la mesa de ayuda (`TIMEZONE`), sin zona, como `2026-10-28 09:57`. Los tickets históricos no traen `technician` ni `analysis`.
 
 El token va en el encabezado `Authorization: Bearer <token>`. Sin token o con uno vencido la API responde 401; con un rol sin permiso, 403. Un usuario desactivado pierde la sesión en su siguiente petición. Los errores siempre llegan como `{ "detail": "..." }` en español, y los de validación agregan `errors` con el campo y el mensaje.
 
