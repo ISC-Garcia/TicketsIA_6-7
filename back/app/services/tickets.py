@@ -45,6 +45,7 @@ class TicketOut(ApiModel):
     resolution_hours: float | None = None
     resolved_at: str | None = None
     resolved_by: str | None = None
+    resolved_by_username: str | None = None
     solution: str | None = None
     edited_after_close: bool | None = None
 
@@ -80,6 +81,7 @@ def ticket_out(ticket: Ticket, settings: Settings) -> TicketOut:
         resolution_hours=ticket.resolution_hours,
         resolved_at=settings.local(ticket.resolved_at) if ticket.resolved_at else None,
         resolved_by=ticket.resolved_by.name if ticket.resolved_by else None,
+        resolved_by_username=ticket.resolved_by_username,
         solution=ticket.solution,
         edited_after_close=ticket.edited_after_close or None,
     )

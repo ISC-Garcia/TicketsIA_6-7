@@ -34,7 +34,7 @@ test.describe('E4-06: ciclo completo de un ticket', () => {
 
     // 2. El coordinador lo reasigna a Sarely desde la bandeja general.
     const coordinator = await signedIn(browser, 'coordinador')
-    await coordinator.getByRole('link', { name: 'Bandeja general' }).click()
+    await coordinator.getByRole('link', { name: 'Bandeja general', exact: true }).click()
     await coordinator.getByRole('button', { name: 'Acciones de TCK-200030' }).click()
     await coordinator.getByRole('menuitem', { name: 'Reasignar' }).click()
     const modal = coordinator.getByRole('dialog', { name: 'Reasignar técnico' })
@@ -117,5 +117,32 @@ test.describe('E4-06: ciclo completo de un ticket', () => {
     await coordinator.keyboard.press('Escape')
     await expect(coordinator.getByRole('menu')).toHaveCount(0)
     await expect(trigger).toBeFocused()
+  })
+
+  test('E4-07: quien resolvió corrige las horas y queda en el historial', async ({ browser }) => {
+    const sarely = await signedIn(browser, 'sxala')
+    await sarely.goto('/bandeja/TCK-115796')
+
+    await sarely.getByRole('button', { name: 'Corregir resolución' }).click()
+    const panel = sarely.getByRole('dialog', { name: 'Corregir resolución' })
+    await panel.getByLabel('Tiempo de resolución').fill('3.5')
+    await panel.getByRole('button', { name: 'Guardar corrección' }).click()
+    await sarely
+      .getByRole('dialog', { name: '¿Guardar la corrección de TCK-115796?' })
+      .getByRole('button', { name: 'Guardar corrección' })
+      .click()
+
+    await expect(sarely.getByText('Resolución de TCK-115796 corregida: 3.50 h')).toBeVisible()
+    await sarely.getByRole('button', { name: 'Ver historial del ticket' }).click()
+    const lastEdit = sarely.locator('.timeline__event').last()
+    await expect(lastEdit).toContainText('Edición posterior al cierre')
+    await expect(lastEdit).toContainText('2.00 h')
+    await expect(lastEdit).toContainText('3.50 h')
+    await expect(lastEdit).toContainText('Sarely Xala Hernández')
+
+    const roberto = await signedIn(browser, 'tecnico')
+    await roberto.goto('/bandeja/TCK-115796')
+    await expect(roberto.getByRole('heading', { name: 'TCK-115796' })).toBeVisible()
+    await expect(roberto.getByRole('button', { name: 'Corregir resolución' })).toHaveCount(0)
   })
 })

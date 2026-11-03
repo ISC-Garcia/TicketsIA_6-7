@@ -244,3 +244,101 @@ def test_e4_04_no_reasigna_a_un_tecnico_desactivado(client: TestClient, demo: Se
     )
 
     assert response.status_code == 422
+
+
+def test_e4_07_corrige_las_horas_como_edicion_posterior_al_cierre(
+    client: TestClient, demo: Session
+) -> None:
+    sarely = auth_headers(client, "sxala")
+
+    response = client.patch(
+        "/api/tickets/TCK-115796/resolution", json={"resolutionHours": 3.5}, headers=sarely
+    )
+
+    ticket = response.json()
+    assert response.status_code == 200
+    assert (ticket["resolutionHours"], ticket["editedAfterClose"]) == (3.5, True)
+    edits = events_of(demo, "TCK-115796", "Edición de datos")
+    assert edits[-1].after_close is True
+    assert edits[-1].detail == "tiempo de resolución 2.00 h a 3.50 h"
+    assert edits[-1].changes == [
+        {"field": "Tiempo de resolución", "oldValue": "2.00 h", "newValue": "3.50 h"}
+    ]
+    assert edits[-1].user_name == "Sarely Xala Hernández"
+
+
+def test_e4_07_corrige_la_solucion_y_las_horas_juntas(client: TestClient, demo: Session) -> None:
+    roberto = auth_headers(client, "tecnico")
+    client.post("/api/tickets/TCK-200007/resolve", json=RESOLUTION, headers=roberto)
+
+    response = client.patch(
+        "/api/tickets/TCK-200007/resolution",
+        json={"solution": "Se cambió la fuente de poder del nodo.", "resolutionHours": 2},
+        headers=roberto,
+    )
+
+    assert response.json()["solution"] == "Se cambió la fuente de poder del nodo."
+    [edit] = events_of(demo, "TCK-200007", "Edición de datos")
+    assert edit.detail == "tiempo de resolución 1.75 h a 2.00 h; solución aplicada"
+    assert [change["field"] for change in edit.changes or []] == [
+        "Tiempo de resolución",
+        "Solución aplicada",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("ticket_id", "username", "body", "code", "message"),
+    [
+        (
+            "TCK-200007",
+            "tecnico",
+            {"resolutionHours": 2},
+            409,
+            "Solo se puede corregir la resolución de un ticket resuelto.",
+        ),
+        (
+            "TCK-115796",
+            "tecnico",
+            {"resolutionHours": 2},
+            403,
+            "Solo quien resolvió el ticket puede corregir su resolución.",
+        ),
+        ("TCK-115796", "sxala", {"resolutionHours": 2}, 422, "No hay cambios que guardar."),
+        ("TCK-115796", "sxala", {}, 422, "No hay cambios que guardar."),
+    ],
+)
+def test_e4_07_rechaza_correcciones_invalidas(
+    client: TestClient,
+    demo: Session,
+    ticket_id: str,
+    username: str,
+    body: dict,
+    code: int,
+    message: str,
+) -> None:
+    response = client.patch(
+        f"/api/tickets/{ticket_id}/resolution", json=body, headers=auth_headers(client, username)
+    )
+
+    assert response.status_code == code
+    assert response.json() == {"detail": message}
+
+
+def test_e4_07_valida_la_correccion(client: TestClient, demo: Session) -> None:
+    response = client.patch(
+        "/api/tickets/TCK-115796/resolution",
+        json={"solution": "corta", "resolutionHours": 0},
+        headers=auth_headers(client, "sxala"),
+    )
+
+    assert response.status_code == 422
+    assert {error["field"] for error in response.json()["errors"]} == {
+        "solution",
+        "resolutionHours",
+    }
+
+
+def test_e4_07_el_formato_de_horas_sin_registro() -> None:
+    from app.services.attention import format_hours
+
+    assert format_hours(None) == "sin registro"

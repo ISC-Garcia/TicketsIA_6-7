@@ -7,6 +7,85 @@ Sistema de Tickets de Soporte Técnico del Instituto Tecnológico de Veracruz. C
 - [`front/`](front/): aplicación web con Vue 3, Vite y TypeScript.
 - [`back/`](back/): API REST con FastAPI, PostgreSQL y el modelo de clasificación.
 
+## Probar en local
+
+Necesitas Node `^22.18.0` o `>=24.12.0`, [uv](https://docs.astral.sh/uv/) y Docker o Podman. Los pasos 1 a 4 solo se hacen la primera vez.
+
+**1. Instalar uv** (si `uv --version` no responde):
+
+```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**2. Configurar el back.** Desde la raíz del repositorio:
+
+```sh
+cd back
+cp .env.example .env
+python3 -c "import secrets; print('JWT_SECRET=' + secrets.token_urlsafe(48))" >> .env
+uv sync
+```
+
+**3. Levantar PostgreSQL** (crea las bases `tickets`, `tickets_test` y `tickets_e2e`):
+
+```sh
+docker compose up -d        # o: podman compose up -d
+docker compose ps           # el servicio db debe decir "healthy"
+```
+
+**4. Crear las tablas, entrenar el modelo y cargar los datos:**
+
+```sh
+uv run alembic upgrade head
+uv run python -m app.ml.train            # unos 2 min
+uv run python -m app.cli seed completo   # unos 30 s; para algo más ligero: seed demo
+```
+
+**5. Iniciar la API** (deja esta terminal abierta):
+
+```sh
+uv run fastapi dev app/main.py
+```
+
+La API queda en <http://localhost:8000> y su documentación interactiva en <http://localhost:8000/docs>.
+
+**6. Iniciar el front** en otra terminal (la primera vez, `npm install` antes):
+
+```sh
+cd front
+npm install
+npm run dev
+```
+
+**7. Entrar.** Abre <http://localhost:5173> y usa cualquiera de estas cuentas, todas con la contraseña `demo2026`:
+
+| Usuario | Rol | Qué puede hacer |
+| --- | --- | --- |
+| `tecnico` | Técnico (Roberto García) | Registrar, atender y resolver sus tickets |
+| `sxala` | Técnico (Sarely Xala) | Lo mismo, con sus propios tickets |
+| `coordinador` | Coordinador | Bandeja general y reasignación |
+| `auditor` | Auditor | Monitoreo, bitácora e historial (en construcción) |
+
+**8. Correr las pruebas:**
+
+```sh
+cd back && uv run pytest --cov           # pruebas del back
+cd front && npm run test:coverage        # pruebas unitarias del front
+cd front && npx playwright install chromium firefox   # solo la primera vez
+cd front && npm run test:e2e             # E2E: levantan su propia API y su propio front
+```
+
+Las E2E usan los puertos 8100 y 5180 y la base `tickets_e2e`, así que pueden correr aunque tengas la API y el front de los pasos 5 y 6 abiertos.
+
+**Para detener todo:** `Ctrl+C` en las terminales de la API y del front, y `docker compose down` en `back/`. Los datos se conservan en el volumen; `docker compose down -v` los borra.
+
+**Si algo falla:**
+
+- **"No se pudo conectar con el servidor." en el login:** la API no está corriendo en el puerto 8000 (paso 5). Si acabas de cambiar de rama, reinicia también `npm run dev`.
+- **"El modelo de clasificación no está disponible" al registrar:** falta el modelo, o es de otra versión. Repite `uv run python -m app.ml.train`.
+- **Las E2E fallan al conectar con `tickets_e2e`:** tu volumen se creó antes de que existiera esa base. Créala una vez con `docker compose exec db psql -U tickets -c "CREATE DATABASE tickets_e2e"`.
+- **Después de hacer `git pull`:** corre de nuevo `uv sync`, `uv run alembic upgrade head` y `npm install`.
+
 ## Front
 
 Requiere Node `^22.18.0` o `>=24.12.0`. Todos los comandos se ejecutan dentro de `front/`.
@@ -163,6 +242,8 @@ Las pruebas usan `TEST_DATABASE_URL`: borran esa base y la migran desde cero al 
 | `POST` | `/api/tickets/{id}/resolve` | Técnico asignado | Resuelve un ticket En atención con `solution` (10 caracteres o más) y `resolutionHours` (más de 0); registra "Ticket resuelto" |
 | `GET` | `/api/technicians` | Coordinador | Técnicos activos con su número de tickets sin resolver |
 | `POST` | `/api/tickets/{id}/assign` | Coordinador | Reasigna un ticket sin resolver a un técnico activo (`technician`); registra "Reasignación" |
+| `PATCH` | `/api/tickets/{id}/resolution` | Quien lo resolvió | Corrige `solution` o `resolutionHours` de un ticket resuelto; registra "Edición de datos" posterior al cierre |
+| `GET` | `/api/dashboard` | Coordinador | KPI, tickets por prioridad y departamento, tendencia (`period`: `semana`, `mes` o `año`; solo cambia la tendencia), tiempo promedio contra SLA y críticos sin resolver |
 
 Las respuestas usan los nombres de campo de `front/src/types/` y las fechas en hora local de la mesa de ayuda (`TIMEZONE`), sin zona, como `2026-10-28 09:57`. Los tickets históricos no traen `technician` ni `analysis`.
 

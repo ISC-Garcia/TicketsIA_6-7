@@ -54,6 +54,7 @@ const loading = ref(true)
 const error = ref('')
 const tab = ref<(typeof TABS)[number]['key']>('resumen')
 const resolving = ref(false)
+const correcting = ref(false)
 const attending = ref(false)
 const actionError = ref('')
 
@@ -103,6 +104,13 @@ const canAttend = computed(
 const canResolve = computed(
   () => !readOnly.value && assignedToMe.value && ticket.value?.status === 'En atención',
 )
+// Solo quien resolvió puede corregir la solución o las horas (P-3, P-8).
+const canCorrect = computed(
+  () =>
+    !readOnly.value &&
+    ticket.value?.status === 'Resuelto' &&
+    ticket.value.resolvedByUsername === session.user?.username,
+)
 const assignedNote = computed(() =>
   !readOnly.value && !assignedToMe.value && ticket.value?.status !== 'Resuelto'
     ? `Asignado a ${ticket.value?.technician ?? 'nadie todavía'}`
@@ -127,12 +135,18 @@ async function attend() {
 
 function onResolved(updated: Ticket) {
   ticket.value = updated
-  toast.show('Ticket resuelto', `${updated.id}, ${updated.resolutionHours?.toFixed(2)} h`)
+  const message = correcting.value ? 'Resolución corregida' : 'Ticket resuelto'
+  toast.show(message, `${updated.id}, ${updated.resolutionHours?.toFixed(2)} h`)
   void load(true)
 }
 
-function showHistory() {
+function closePanel() {
   resolving.value = false
+  correcting.value = false
+}
+
+function showHistory() {
+  closePanel()
   tab.value = 'historial'
 }
 
@@ -196,13 +210,16 @@ const sla = computed(() => {
           />
         </div>
 
-        <div v-if="canAttend || canResolve || assignedNote" class="detail__actions">
+        <div v-if="canAttend || canResolve || canCorrect || assignedNote" class="detail__actions">
           <BaseButton v-if="canAttend" size="lg" :disabled="attending" @click="attend">
             Atender
           </BaseButton>
           <BaseButton v-if="canResolve" size="lg" @click="resolving = true">
             <BaseIcon :path="ICONS.check" :size="18" />
             Marcar como resuelto
+          </BaseButton>
+          <BaseButton v-if="canCorrect" variant="secondary" size="lg" @click="correcting = true">
+            Corregir resolución
           </BaseButton>
           <span v-if="assignedNote" class="detail__assigned">{{ assignedNote }}</span>
           <p v-if="actionError" class="detail__action-error" role="alert">{{ actionError }}</p>
@@ -224,9 +241,10 @@ const sla = computed(() => {
     </BaseTabs>
 
     <ResolvePanel
-      v-if="resolving"
+      v-if="resolving || correcting"
       :ticket="ticket"
-      @close="resolving = false"
+      :correction="correcting"
+      @close="closePanel"
       @resolved="onResolved"
       @history="showHistory"
     />

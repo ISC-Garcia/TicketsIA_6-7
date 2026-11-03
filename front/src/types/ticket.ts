@@ -55,6 +55,7 @@ export interface Ticket {
   resolutionHours?: number
   resolvedAt?: string
   resolvedBy?: string
+  resolvedByUsername?: string
   solution?: string
   editedAfterClose?: boolean
 }

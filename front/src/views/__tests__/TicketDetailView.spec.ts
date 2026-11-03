@@ -216,8 +216,8 @@ describe('TicketDetailView', () => {
       expect(router.currentRoute.value.name).toBe('general')
     })
 
-    it('un ticket resuelto no ofrece acciones', async () => {
-      const { wrapper } = await mountDetail('TCK-115796', 'sxala')
+    it('un ticket resuelto por otro técnico no ofrece acciones', async () => {
+      const { wrapper } = await mountDetail('TCK-115796', 'tecnico')
 
       expect(wrapper.find('.detail__actions').exists()).toBe(false)
     })
@@ -319,6 +319,56 @@ describe('TicketDetailView', () => {
       expect(panel(wrapper).find('.resolve__error').text()).toBe(
         'Atiende el ticket antes de resolverlo.',
       )
+    })
+  })
+
+  describe('E4-07: corregir la resolución', () => {
+    const lastDialog = (wrapper: Awaited<ReturnType<typeof mountDetail>>['wrapper']) => {
+      const dialogs = wrapper.findAll('dialog')
+      return dialogs[dialogs.length - 1]!
+    }
+
+    it('quien resolvió corrige las horas y queda la edición posterior al cierre', async () => {
+      const { wrapper } = await mountDetail('TCK-115796', 'sxala')
+      await buttonNamed(wrapper, 'Corregir resolución')!.trigger('click')
+
+      const panel = wrapper.find('dialog')
+      expect(panel.find('h2').text()).toBe('Corregir resolución')
+      expect((panel.find('textarea').element as HTMLTextAreaElement).value).toContain(
+        'módulo de energía',
+      )
+      expect((panel.find('input').element as HTMLInputElement).value).toBe('2.00')
+      expect(panel.text()).toContain('Registrado: 2.00 h.')
+
+      await panel.find('input').setValue('3.25')
+      await panel.find('form').trigger('submit')
+      expect(lastDialog(wrapper).text()).toContain('¿Guardar la corrección de TCK-115796?')
+      await lastDialog(wrapper)
+        .findAll('button')
+        .find((button) => button.text() === 'Guardar corrección')!
+        .trigger('click')
+      await settle()
+
+      expect(wrapper.find('dialog').text()).toContain('Resolución de TCK-115796 corregida: 3.25 h')
+      expect(wrapper.find('.detail__sla-label').text()).toBe('Resuelto en 3.25 h')
+      expect(useToastStore().current).toMatchObject({
+        message: 'Resolución corregida',
+        detail: 'TCK-115796, 3.25 h',
+      })
+    })
+
+    it('muestra el motivo si no hay cambios', async () => {
+      const { wrapper } = await mountDetail('TCK-115796', 'sxala')
+      await buttonNamed(wrapper, 'Corregir resolución')!.trigger('click')
+
+      await wrapper.find('dialog form').trigger('submit')
+      await lastDialog(wrapper)
+        .findAll('button')
+        .find((button) => button.text() === 'Guardar corrección')!
+        .trigger('click')
+      await settle()
+
+      expect(wrapper.find('.resolve__error').text()).toBe('No hay cambios que guardar.')
     })
   })
 })
