@@ -34,7 +34,7 @@ test.describe('E4-06: ciclo completo de un ticket', () => {
 
     // 2. El coordinador lo reasigna a Sarely desde la bandeja general.
     const coordinator = await signedIn(browser, 'coordinador')
-    await coordinator.getByRole('link', { name: 'Bandeja general' }).click()
+    await coordinator.getByRole('link', { name: 'Bandeja general', exact: true }).click()
     await coordinator.getByRole('button', { name: 'Acciones de TCK-200030' }).click()
     await coordinator.getByRole('menuitem', { name: 'Reasignar' }).click()
     const modal = coordinator.getByRole('dialog', { name: 'Reasignar técnico' })
