@@ -1,5 +1,6 @@
 import { delay, http, HttpResponse } from 'msw'
 
+import type { Dashboard, DashboardPeriod, Trend } from '@/types/dashboard'
 import type { AuditEvent, EventDateFilter, EventType } from '@/types/event'
 import type { Page } from '@/types/page'
 import { DEPARTMENTS, PRIORITIES, TICKET_DATE_FILTERS, TICKET_STATUSES } from '@/types/ticket'
@@ -178,6 +179,64 @@ async function changeTicket(
     )
   }
   return change(ticket, user.name) ?? HttpResponse.json(withUsername(ticket))
+}
+
+const SIMULATED_TRENDS: Record<DashboardPeriod, Omit<Trend, 'period'>> = {
+  semana: {
+    subtitle: 'Última semana, por día',
+    labels: ['Jue 22', 'Vie 23', 'Sáb 24', 'Dom 25', 'Lun 26', 'Mar 27', 'Mié 28'],
+    created: [9, 8, 3, 2, 11, 10, 7],
+    resolved: [8, 9, 4, 2, 9, 10, 6],
+  },
+  mes: {
+    subtitle: 'Último mes, por semana',
+    labels: ['S40', 'S41', 'S42', 'S43', 'S44'],
+    created: [47, 43, 50, 46, 41],
+    resolved: [44, 45, 47, 44, 39],
+  },
+  año: {
+    subtitle: 'Último año, por mes',
+    labels: ['Nov', 'Dic', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct'],
+    created: [172, 158, 181, 176, 190, 185, 179, 194, 201, 188, 196, 203],
+    resolved: [168, 160, 175, 174, 186, 183, 181, 189, 197, 190, 192, 198],
+  },
+}
+
+function simulatedDashboard(period: DashboardPeriod): Dashboard {
+  const open = tickets.filter((ticket) => ticket.status !== 'Resuelto')
+  const countBy = (labels: readonly string[], pick: (ticket: Ticket) => string) =>
+    labels.map((label) => ({
+      label,
+      count: tickets.filter((ticket) => pick(ticket) === label).length,
+    }))
+  return {
+    kpis: {
+      openTickets: open.length,
+      openTicketsBefore: open.length - 5,
+      criticalOpen: open.filter((ticket) => ticket.priority === 'Crítica').length,
+      criticalOpenBefore: 3,
+      averageResolutionHours: 25.6,
+      averageResolutionHoursBefore: 27.4,
+      slaCompliance: 91.8,
+      slaComplianceBefore: 91.2,
+    },
+    byPriority: countBy(PRIORITIES, (ticket) => ticket.priority),
+    total: tickets.length,
+    byDepartment: countBy(DEPARTMENTS, (ticket) => ticket.department).sort(
+      (a, b) => b.count - a.count,
+    ),
+    trend: { period, ...SIMULATED_TRENDS[period] },
+    resolutionVsSla: [
+      { priority: 'Crítica', averageHours: 5, slaHours: 4 },
+      { priority: 'Alta', averageHours: 8.8, slaHours: 12 },
+      { priority: 'Media', averageHours: 30.1, slaHours: 48 },
+      { priority: 'Baja', averageHours: 58.3, slaHours: 96 },
+    ],
+    critical: open
+      .filter((ticket) => ticket.priority === 'Crítica')
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map(withUsername),
+  }
 }
 
 export const handlers = [
@@ -407,6 +466,12 @@ export const handlers = [
         numberParam(params, 'pageSize') ?? EVENTS_PER_PAGE,
       )
     })
+  }),
+
+  // Con datos simulados la tendencia es la del prototipo; el resto sale de los tickets de la demo.
+  http.get('*/api/dashboard', ({ request }) => {
+    const period = (new URL(request.url).searchParams.get('period') ?? 'mes') as DashboardPeriod
+    return respond(() => simulatedDashboard(period))
   }),
 
   http.get('*/api/users', () => respond(() => users)),

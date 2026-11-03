@@ -1,6 +1,7 @@
 import type { RouteRecordRaw } from 'vue-router'
 
 import type { Role } from '@/types/user'
+import { DASHBOARD_PERIODS, type DashboardPeriod } from '@/types/dashboard'
 import { parseTicketFilters } from '@/utils/ticketFilters'
 
 declare module 'vue-router' {
@@ -12,6 +13,10 @@ declare module 'vue-router' {
     tabs?: Record<string, string>
   }
 }
+
+// Un periodo desconocido en la URL vuelve al de por omisión.
+const parseDashboardPeriod = (value: unknown): DashboardPeriod =>
+  DASHBOARD_PERIODS.find((period) => period === value) ?? 'mes'
 
 // Vista temporal: cada historia la reemplaza por su pantalla.
 const placeholder = () => import('@/views/PlaceholderView.vue')
@@ -71,7 +76,8 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'dashboard',
         name: 'dashboard',
-        component: placeholder,
+        component: () => import('@/views/DashboardView.vue'),
+        props: (route) => ({ period: parseDashboardPeriod(route.query.periodo) }),
         meta: { roles: ['coordinador'], title: 'Dashboard de carga de trabajo' },
       },
       {
