@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatLongDate } from '../format'
+import { formatLongDate, formatMinutes } from '../format'
 import { initialsOf } from '../initials'
 
 describe('initialsOf', () => {
@@ -19,5 +19,23 @@ describe('initialsOf', () => {
 describe('formatLongDate', () => {
   it('escribe la fecha completa con mayúscula inicial', () => {
     expect(formatLongDate(new Date('2026-10-28T11:42:10'))).toBe('Miércoles, 28 de octubre de 2026')
+  })
+})
+
+describe('formatMinutes', () => {
+  it.each([
+    [0, '0 min'],
+    [59, '59 min'],
+    [59.6, '1 h'],
+    [60, '1 h'],
+    [105, '1 h 45 min'],
+    [599, '9 h 59 min'],
+    [600, '10 h'],
+    [630, '10 h'],
+    [10079, '167 h'],
+    [10080, '7 d'],
+    [20000, '13 d'],
+  ])('%s minutos dan %s', (minutes, expected) => {
+    expect(formatMinutes(minutes)).toBe(expected)
   })
 })
