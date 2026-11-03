@@ -17,7 +17,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.models import Ticket
-from app.seeds import local_time
+from app.seeds import local_time, sync_ticket_numbers
 from app.seeds.demo import seed_demo
 
 DATASET_FILE = "tickets_soporte_procesado.csv"
@@ -77,6 +77,7 @@ def seed_full(session: Session, zone: ZoneInfo, data_dir: Path) -> int:
 
     for batch in batched(historic_rows(path, zone), BATCH_SIZE, strict=False):
         session.execute(insert(Ticket).values(batch).on_conflict_do_nothing(index_elements=["id"]))
+    sync_ticket_numbers(session)
     session.commit()
 
     after = session.scalar(select(func.count()).select_from(Ticket)) or 0

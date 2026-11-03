@@ -3,13 +3,16 @@
 from datetime import datetime, timedelta
 from typing import Any, Literal
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, select, text
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import Settings
-from app.domain import PRIORITIES
-from app.models import Event, Ticket
+from app.domain import PRIORITIES, SYSTEM_USER
+from app.events import record_event
+from app.ml.classify import Classification
+from app.models import Event, Ticket, User
 from app.schemas import ApiModel
+from app.seeds.full import summarize
 
 TicketDate = Literal["hoy", "48", "7"]
 DATE_WINDOWS = {"48": timedelta(hours=48), "7": timedelta(days=7)}
@@ -160,3 +163,56 @@ def ticket_events(db: Session, ticket_id: str) -> list[Event]:
     return list(
         db.scalars(select(Event).where(Event.ticket_id == ticket_id).order_by(Event.time, Event.id))
     )
+
+
+def next_ticket_id(db: Session) -> str:
+    number = db.scalar(text("SELECT nextval('ticket_number_seq')"))
+    return f"TCK-{number:06d}"
+
+
+def register_ticket(
+    db: Session,
+    settings: Settings,
+    user: User,
+    *,
+    area: str,
+    reporter: str,
+    description: str,
+    result: Classification,
+) -> Ticket:
+    """Guarda el ticket como Abierto, asignado a quien lo registra, con sus dos eventos."""
+    ticket = Ticket(
+        id=next_ticket_id(db),
+        priority=result.priority,
+        area=area,
+        device=result.device,
+        department=result.department,
+        status="Abierto",
+        created_at=settings.now(),
+        reporter=reporter,
+        technician_username=user.username,
+        summary=summarize(description),
+        description=description,
+        highlights=result.entities.highlights,
+        analysis=result.analysis(),
+    )
+    db.add(ticket)
+    db.flush()
+    record_event(
+        db,
+        settings,
+        user_name=user.name,
+        type="Ticket creado",
+        ticket_id=ticket.id,
+        detail=f"Reportado por {reporter}, área {area}",
+    )
+    record_event(
+        db,
+        settings,
+        user_name=SYSTEM_USER,
+        type="Clasificado por IA",
+        ticket_id=ticket.id,
+        detail=f"Prioridad {result.priority} ({result.confidence} %), {result.department}",
+    )
+    db.commit()
+    return ticket
