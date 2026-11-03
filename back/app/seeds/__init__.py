@@ -19,8 +19,8 @@ def local_time(value: str, zone: ZoneInfo) -> datetime:
     raise ValueError(f"Fecha con formato desconocido: {value!r}")
 
 
-# Las mediciones de PostgreSQL no son datos de la semilla: recargarla no las borra.
-NOT_SEEDED = {"database_samples"}
+# Las mediciones y los respaldos no son datos de la semilla: recargarla no los borra.
+NOT_SEEDED = {"database_samples", "backups"}
 
 
 def clear(session: Session) -> None:

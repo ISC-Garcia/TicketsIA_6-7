@@ -14,7 +14,7 @@ from app.config import BACK_DIR, Settings
 from app.db import get_engine
 from app.main import create_app
 from app.ml.train import MODEL_FILE, run
-from app.models import DatabaseSample
+from app.models import Backup, DatabaseSample
 from app.seeds import clear
 from app.seeds.demo import DEMO_PASSWORD, seed_demo
 
@@ -72,6 +72,7 @@ def db(migrated: Engine) -> Iterator[Session]:
     with Session(migrated) as session:
         clear(session)
         session.execute(delete(DatabaseSample))
+        session.execute(delete(Backup))
         session.commit()
         yield session
 

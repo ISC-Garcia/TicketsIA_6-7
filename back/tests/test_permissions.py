@@ -40,6 +40,8 @@ PERMISSIONS: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("GET", "/api/users"): ("coordinador",),
     ("GET", "/api/events"): ("auditor",),
     ("GET", "/api/database/status"): ("auditor",),
+    ("GET", "/api/database/tables"): ("auditor",),
+    ("GET", "/api/database/backups"): ("auditor",),
     ("POST", "/api/users"): ("coordinador",),
     ("PATCH", "/api/users/{username}"): ("coordinador",),
     ("GET", "/api/tickets/counts"): ("tecnico", "coordinador"),

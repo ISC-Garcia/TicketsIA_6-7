@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     # Firma de los tokens de sesión. Sin valor por omisión, igual que la conexión.
     jwt_secret: str = Field(min_length=32)
     session_hours: int = 8
+    # Carpeta de los respaldos de `pg_dump`. Por omisión, `<DATA_DIR>/respaldos`.
+    backup_dir: Path | None = None
+    pg_dump: str = "pg_dump"
     # Cada cuántos minutos se guarda una muestra de PostgreSQL. Con 0 no se guardan.
     monitor_interval_minutes: int = Field(default=5, ge=0)
 
@@ -61,6 +64,10 @@ class Settings(BaseSettings):
     @property
     def model_file(self) -> Path:
         return self.model_path or self.data_dir / "modelo_tickets.joblib"
+
+    @property
+    def backup_folder(self) -> Path:
+        return self.backup_dir or self.data_dir / "respaldos"
 
     def now(self) -> datetime:
         return self.app_now or datetime.now(self.zone)
