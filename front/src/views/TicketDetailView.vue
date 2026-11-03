@@ -54,7 +54,15 @@ async function load() {
   tab.value = 'resumen'
 
   try {
-    const [found, history] = await Promise.all([getTicket(props.id), listTicketEvents(props.id)])
+    // Si el ticket no existe, la API también responde 404 a su historial: eso no es una falla,
+    // es el caso "no encontrado" que muestra la vista.
+    const [found, history] = await Promise.all([
+      getTicket(props.id),
+      listTicketEvents(props.id).catch((cause) => {
+        if (cause instanceof ServiceError && cause.status === 404) return []
+        throw cause
+      }),
+    ])
     if (request !== lastRequest) return
     ticket.value = found
     events.value = history

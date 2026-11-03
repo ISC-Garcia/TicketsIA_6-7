@@ -139,6 +139,13 @@ describe('listEvents', () => {
 })
 
 describe('listTicketEvents', () => {
+  it('responde 404 si el ticket no existe, como la API', async () => {
+    const error = (await listTicketEvents('TCK-000000').catch((caught) => caught)) as ServiceError
+
+    expect(error).toBeInstanceOf(ServiceError)
+    expect(error.status).toBe(404)
+  })
+
   it('devuelve la línea de tiempo en orden cronológico', async () => {
     const timeline = await listTicketEvents('TCK-115796')
 
