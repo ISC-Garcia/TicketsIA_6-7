@@ -14,7 +14,7 @@ const confirmingLogout = ref(false)
 
 async function logout() {
   confirmingLogout.value = false
-  session.signOut()
+  await session.signOut()
   await router.push({ name: 'login' })
 }
 </script>

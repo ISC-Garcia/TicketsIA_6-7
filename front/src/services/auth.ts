@@ -10,23 +10,26 @@ export class AuthError extends ServiceError {
   }
 }
 
-interface LoginResponse {
+export interface Session {
   token: string
   user: User
 }
 
 // Una cuenta desactivada recibe el mismo error para no revelar qué usuarios existen.
-export async function login(username: string, password: string): Promise<User> {
+export async function login(username: string, password: string): Promise<Session> {
   try {
-    const { user } = await request<LoginResponse>('/api/auth/login', {
+    return await request<Session>('/api/auth/login', {
       method: 'POST',
       body: { username: username.trim().toLowerCase(), password },
     })
-    return user
   } catch (error) {
     if (error instanceof ServiceError && error.status === UNAUTHORIZED) {
       throw new AuthError(error.message)
     }
     throw error
   }
+}
+
+export function logout(): Promise<void> {
+  return request('/api/auth/logout', { method: 'POST' })
 }

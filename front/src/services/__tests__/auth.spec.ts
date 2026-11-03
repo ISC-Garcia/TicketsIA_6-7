@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { setMockFailure } from '@/mocks/handlers'
 import { users } from '@/mocks/users'
 
-import { AuthError, login } from '../auth'
+import { AuthError, login, logout } from '../auth'
 import { ServiceError } from '../http'
 
 describe('login', () => {
@@ -20,11 +20,11 @@ describe('login', () => {
     ['coordinador', 'coordinador'],
     ['auditor', 'auditor'],
   ])('%s entra con el rol %s', async (username, role) => {
-    expect((await login(username, 'demo2026')).role).toBe(role)
+    expect((await login(username, 'demo2026')).user.role).toBe(role)
   })
 
   it('normaliza el usuario pero no la contraseña', async () => {
-    expect((await login('  TECNICO ', 'demo2026')).username).toBe('tecnico')
+    expect((await login('  TECNICO ', 'demo2026')).user.username).toBe('tecnico')
     await expect(login('tecnico', 'DEMO2026')).rejects.toBeInstanceOf(AuthError)
   })
 
@@ -48,5 +48,13 @@ describe('login', () => {
 
     expect(failure).toBeInstanceOf(ServiceError)
     expect(failure).not.toBeInstanceOf(AuthError)
+  })
+
+  it('devuelve el token de la sesión', async () => {
+    expect((await login('auditor', 'demo2026')).token).toBe('simulado-auditor')
+  })
+
+  it('cierra la sesión en el servidor', async () => {
+    await expect(logout()).resolves.toBeUndefined()
   })
 })

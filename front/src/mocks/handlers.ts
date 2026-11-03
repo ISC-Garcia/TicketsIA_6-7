@@ -96,6 +96,10 @@ export const handlers = [
     return HttpResponse.json({ token: `simulado-${user.username}`, user })
   }),
 
+  http.post('*/api/auth/logout', () =>
+    failing ? HttpResponse.error() : new HttpResponse(null, { status: 204 }),
+  ),
+
   // Los resueltos solo aparecen al pedirlos, como en la bandeja del prototipo.
   http.get('*/api/tickets', ({ request }) => {
     const params = new URL(request.url).searchParams

@@ -66,6 +66,8 @@ async function submit() {
         con PNL.
       </p>
 
+      <p v-if="session.notice" class="login__notice" role="status">{{ session.notice }}</p>
+
       <form class="login__form" novalidate @submit.prevent="submit">
         <FormField v-slot="{ id }" label="Usuario">
           <BaseInput
@@ -167,6 +169,16 @@ async function submit() {
   font-size: var(--font-size-13);
   line-height: 1.55;
   text-wrap: pretty;
+}
+
+.login__notice {
+  margin: 24px 0 0;
+  padding: 10px 14px;
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-6);
+  background: var(--color-warning-tint);
+  color: var(--color-warning);
+  font-size: var(--font-size-13);
 }
 
 .login__form {

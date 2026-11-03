@@ -6,6 +6,8 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 
 import { setMockFailure } from '@/mocks/handlers'
 
+import { useSessionStore } from '@/stores/session'
+
 import LoginView from '../LoginView.vue'
 
 const SECTIONS = [
@@ -123,5 +125,18 @@ describe('LoginView', () => {
     expect(username.value).toBe('coordinador')
     expect(password.value).toBe('demo2026')
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('avisa que la sesión terminó y quita el aviso al volver a entrar', async () => {
+    useSessionStore().notice = 'Tu sesión terminó. Vuelve a iniciar sesión.'
+    const { wrapper } = await mountLogin()
+
+    expect(wrapper.find('[role="status"]').text()).toBe(
+      'Tu sesión terminó. Vuelve a iniciar sesión.',
+    )
+
+    await submitWith(wrapper, 'tecnico', 'demo2026')
+
+    expect(wrapper.find('[role="status"]').exists()).toBe(false)
   })
 })
