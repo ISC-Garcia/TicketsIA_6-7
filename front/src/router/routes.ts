@@ -50,7 +50,8 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'bandeja/:id',
         name: 'bandeja-detalle',
-        component: placeholder,
+        component: () => import('@/views/TicketDetailView.vue'),
+        props: true,
         meta: { roles: ['tecnico'], title: 'Detalle de ticket', parent: 'bandeja' },
       },
       {
