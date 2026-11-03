@@ -62,4 +62,23 @@ describe.each(ROUTES_BY_ROLE)('con el rol %s', (role, ownPaths) => {
   it.each(['/', '/login', '/no-existe'])('%s lleva a su inicio', async (path) => {
     expect(await finalPath(userWith(role), path)).toBe(home)
   })
+
+  describe('E5-03: contraseña temporal pendiente', () => {
+    const pending = { ...userWith('tecnico'), mustChangePassword: true }
+
+    it.each(['/bandeja', '/registrar', '/login', '/dashboard'])(
+      'desde %s lleva a cambiar la contraseña',
+      async (path) => {
+        expect(await finalPath(pending, path)).toBe('/cambiar-contrasena')
+      },
+    )
+
+    it('sin sesión, cambiar la contraseña lleva al login', async () => {
+      expect(await finalPath(null, '/cambiar-contrasena')).toBe('/login')
+    })
+
+    it('con la contraseña ya cambiada, esa pantalla lleva al inicio', async () => {
+      expect(await finalPath(userWith('auditor'), '/cambiar-contrasena')).toBe('/monitoreo')
+    })
+  })
 })

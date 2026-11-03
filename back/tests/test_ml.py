@@ -194,3 +194,22 @@ def test_e0_04_rechaza_un_archivo_danado(tmp_path: Path) -> None:
     assert state.error is not None
     assert state.error.startswith("No se pudo leer el modelo")
     assert state.metrics == {}
+
+
+def test_e7_01_las_metricas_son_las_del_modelo_cargado(
+    settings: Settings, trained: Path, demo: Session
+) -> None:
+    with_model = settings.model_copy(update={"model_path": trained / MODEL_FILE})
+
+    with TestClient(create_app(with_model)) as client:
+        response = client.get("/api/model/metrics", headers=auth_headers(client, "coordinador"))
+
+    assert response.status_code == 200
+    assert response.json() == json.loads((trained / METRICS_FILE).read_text(encoding="utf-8"))
+
+
+def test_e7_01_sin_modelo_las_metricas_responden_503(client: TestClient, demo: Session) -> None:
+    response = client.get("/api/model/metrics", headers=auth_headers(client, "coordinador"))
+
+    assert response.status_code == 503
+    assert "Entrénalo con" in response.json()["detail"]

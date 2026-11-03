@@ -37,3 +37,8 @@ export function logout(): Promise<void> {
 export function currentUser(): Promise<User> {
   return request('/api/auth/me')
 }
+
+// Entrega una sesión completa: el token del primer acceso solo sirve para esto.
+export function changePassword(currentPassword: string, newPassword: string): Promise<Session> {
+  return request('/api/auth/password', { method: 'POST', body: { currentPassword, newPassword } })
+}

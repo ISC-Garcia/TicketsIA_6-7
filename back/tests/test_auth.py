@@ -8,7 +8,14 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Event, User
-from app.security import ALGORITHM, create_token, hash_password, read_token, verify_password
+from app.security import (
+    ALGORITHM,
+    TokenClaims,
+    create_token,
+    hash_password,
+    read_token,
+    verify_password,
+)
 from tests.conftest import NOW, auth_headers
 
 INVALID = "Usuario o contraseña incorrectos."
@@ -35,7 +42,13 @@ def test_e1_01_cada_usuario_demo_entra_con_su_rol(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["user"] == {"name": name, "username": username, "role": role, "active": True}
+    assert body["user"] == {
+        "name": name,
+        "username": username,
+        "role": role,
+        "active": True,
+        "mustChangePassword": False,
+    }
     assert isinstance(body["token"], str)
 
 
@@ -136,7 +149,8 @@ def test_e1_01_el_token_vence_en_las_horas_configuradas(settings: Settings) -> N
 
     assert claims["sub"] == "tecnico"
     assert claims["exp"] - claims["iat"] == 8 * 3600
-    assert read_token(token, settings.jwt_secret) == "tecnico"
+    assert read_token(token, settings.jwt_secret) == TokenClaims("tecnico", "session")
+    assert claims["scope"] == "session"
     assert read_token(token, "otra-clave-de-al-menos-treinta-y-dos") is None
 
 

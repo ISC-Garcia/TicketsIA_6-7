@@ -35,6 +35,11 @@ export const routes: RouteRecordRaw[] = [
     meta: { guest: true },
   },
   {
+    path: '/cambiar-contrasena',
+    name: 'cambiar-contrasena',
+    component: () => import('@/views/ChangePasswordView.vue'),
+  },
+  {
     path: '/',
     component: () => import('@/layouts/AppLayout.vue'),
     redirect: { name: 'login' },
@@ -98,7 +103,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'usuarios',
         name: 'usuarios',
-        component: placeholder,
+        component: () => import('@/views/UsersView.vue'),
         meta: { roles: ['coordinador'], title: 'Gestión de usuarios' },
       },
       {

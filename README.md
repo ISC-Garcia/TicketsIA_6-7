@@ -231,7 +231,9 @@ Las pruebas usan `TEST_DATABASE_URL`: borran esa base y la migran desde cero al 
 | `POST` | `/api/auth/login` | Público | Recibe `username` y `password`; devuelve `token` y `user`. Registra "Inicio de sesión" |
 | `POST` | `/api/auth/logout` | Con sesión | Registra "Cierre de sesión" |
 | `GET` | `/api/auth/me` | Con sesión | Usuario de la sesión |
+| `POST` | `/api/auth/password` | Con sesión | Cambia la contraseña (`currentPassword`, `newPassword` de 8 caracteres o más) y entrega una sesión completa; registra "Cambio de contraseña" |
 | `GET` | `/api/model/info` | Con sesión | Si el modelo está cargado, cuándo se entrenó, con qué versión y su exactitud |
+| `GET` | `/api/model/metrics` | Coordinador | El contenido de `metricas.json` del modelo cargado; 503 si no hay modelo |
 | `GET` | `/api/tickets` | Técnico, coordinador | Bandeja: filtros `priority`, `department`, `status`, `date` (`hoy`, `48`, `7`) y `search`; `page` y `pageSize` (25 por omisión, máximo 100). Ordena por prioridad y antigüedad. Sin `status` excluye los resueltos |
 | `GET` | `/api/tickets/counts` | Técnico, coordinador | Tickets por prioridad; `resolved=true` cuenta los resueltos |
 | `POST` | `/api/tickets/analyze` | Técnico | Clasifica una captura (`area`, `reporter`, `description` de 20 a 1,000 caracteres, `device` opcional) sin guardarla. Responde 503 si no hay modelo |
@@ -244,10 +246,13 @@ Las pruebas usan `TEST_DATABASE_URL`: borran esa base y la migran desde cero al 
 | `POST` | `/api/tickets/{id}/assign` | Coordinador | Reasigna un ticket sin resolver a un técnico activo (`technician`); registra "Reasignación" |
 | `PATCH` | `/api/tickets/{id}/resolution` | Quien lo resolvió | Corrige `solution` o `resolutionHours` de un ticket resuelto; registra "Edición de datos" posterior al cierre |
 | `GET` | `/api/dashboard` | Coordinador | KPI, tickets por prioridad y departamento, tendencia (`period`: `semana`, `mes` o `año`; solo cambia la tendencia), tiempo promedio contra SLA y críticos sin resolver |
+| `GET` | `/api/users` | Coordinador | Usuarios con su rol y estado |
+| `POST` | `/api/users` | Coordinador | Crea un usuario (`name`, `username` con `^[a-z0-9._]{3,}$`, `role`, `password` temporal de 8 caracteres o más) |
+| `PATCH` | `/api/users/{username}` | Coordinador | Activa o desactiva una cuenta (`active`); nadie se desactiva a sí mismo |
 
 Las respuestas usan los nombres de campo de `front/src/types/` y las fechas en hora local de la mesa de ayuda (`TIMEZONE`), sin zona, como `2026-10-28 09:57`. Los tickets históricos no traen `technician` ni `analysis`.
 
-El token va en el encabezado `Authorization: Bearer <token>`. Sin token o con uno vencido la API responde 401; con un rol sin permiso, 403. Un usuario desactivado pierde la sesión en su siguiente petición. Los errores siempre llegan como `{ "detail": "..." }` en español, y los de validación agregan `errors` con el campo y el mensaje.
+El token va en el encabezado `Authorization: Bearer <token>`. Sin token o con uno vencido la API responde 401; con un rol sin permiso, 403. Un usuario desactivado pierde la sesión en su siguiente petición. Un usuario nuevo entra con una contraseña temporal: hasta cambiarla, su token solo sirve para `/api/auth/password`, `/api/auth/me` y `/api/auth/logout`, y el resto responde 403. Los errores siempre llegan como `{ "detail": "..." }` en español, y los de validación agregan `errors` con el campo y el mensaje.
 
 Con `APP_ENV=test` existen además `POST /api/test/reset`, que recarga la semilla demo, y `PATCH /api/test/users/{username}`, que activa o desactiva una cuenta. Los usan las pruebas E2E.
 
