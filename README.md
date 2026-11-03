@@ -25,8 +25,33 @@ npm install
 | `npm run test:coverage` | Ejecuta las pruebas una vez y exige 90 % de cobertura |
 | `npm run lint` | Revisa y corrige el código con Oxlint y [ESLint](https://eslint.org/) |
 | `npm run format` | Formatea `src/` con Prettier |
+| `npm run test:e2e` | Ejecuta las pruebas E2E con Playwright contra la API real (ver abajo) |
 
 La configuración de Vite se documenta en la [referencia de Vite](https://vite.dev/config/).
+
+### Conexión con la API
+
+En desarrollo el front llama a `/api` en su propio origen y Vite lo reenvía a `http://localhost:8000`; para otro destino, inicia con `API_PROXY=http://otra:puerto npm run dev`. Las variables van en `front/.env.local` (ver `.env.example`):
+
+| Variable | Qué hace |
+| --- | --- |
+| `VITE_API_URL` | URL de la API en producción. Vacía en desarrollo |
+| `VITE_API_MOCK` | `true` para trabajar sin back: [MSW](https://mswjs.io/) responde con los datos de `src/mocks/` |
+| `VITE_MOCK_FAILURE` | Con `VITE_API_MOCK=true`, hace fallar todas las llamadas para probar los estados de error |
+| `VITE_DEMO_MODE` | Muestra los accesos de demostración en el login |
+
+Las pruebas unitarias usan siempre MSW: no necesitan el back.
+
+### Pruebas E2E
+
+`npm run test:e2e` levanta la API con `APP_ENV=test` en el puerto 8100 contra la base `tickets_e2e`, levanta el front en el 5180 y corre Playwright en Chromium y Firefox. Antes de cada prueba la API recarga la semilla demo. Necesita PostgreSQL arriba (`back/compose.yaml`) y, la primera vez, los navegadores:
+
+```sh
+npx playwright install chromium firefox
+npm run test:e2e
+```
+
+Otra base se indica con `E2E_DATABASE_URL`. Si una prueba falla, Playwright guarda la traza, la captura y el video en `test-results/`.
 
 ### Entorno recomendado
 
@@ -53,7 +78,7 @@ Requiere [uv](https://docs.astral.sh/uv/) y Docker o Podman. uv instala Python 3
 | `app/seeds/` | Semillas `demo` y `completo` |
 | `app/cli.py` | Comandos de mantenimiento |
 | `migrations/` | Migraciones de Alembic |
-| `compose.yaml` | PostgreSQL 17 con las bases `tickets` y `tickets_test` |
+| `compose.yaml` | PostgreSQL 17 con las bases `tickets`, `tickets_test` (pytest) y `tickets_e2e` (Playwright) |
 | `tests/` | Pruebas con pytest contra la base `tickets_test` |
 
 ### Configuración
@@ -75,6 +100,8 @@ uv run alembic upgrade head
 | `TIMEZONE` | Zona horaria de la mesa de ayuda, `America/Mexico_City` por omisión |
 | `DATA_DIR`, `MODEL_PATH` | Carpeta del dataset y ruta del modelo. Por omisión, `back/datos/` |
 | `CORS_ORIGINS` | Orígenes que pueden llamar a la API, en JSON |
+| `JWT_SECRET` | Clave que firma las sesiones, de al menos 32 caracteres. Obligatoria |
+| `SESSION_HOURS` | Horas que dura una sesión, 8 por omisión |
 
 ### Datos y modelo
 
@@ -98,7 +125,7 @@ La API solo carga un modelo entrenado con la misma versión de scikit-learn que 
 Cada semilla borra todos los datos antes de cargar.
 
 ```sh
-uv run python -m app.cli seed demo       # 4 usuarios, 9 tickets y 31 eventos del prototipo
+uv run python -m app.cli seed demo       # 4 usuarios (contraseña demo2026), 9 tickets y 31 eventos
 uv run python -m app.cli seed completo   # la demo más 98,999 tickets históricos resueltos (~30 s)
 ```
 
@@ -117,10 +144,17 @@ Las pruebas usan `TEST_DATABASE_URL`: borran esa base y la migran desde cero al 
 
 ### Endpoints
 
-| Método | Ruta | Qué hace |
-| --- | --- | --- |
-| `GET` | `/api/health` | Estado de la API, de la base de datos y del modelo, con la hora del servidor |
-| `GET` | `/api/model/info` | Si el modelo está cargado, cuándo se entrenó, con qué versión y su exactitud |
+| Método | Ruta | Quién | Qué hace |
+| --- | --- | --- | --- |
+| `GET` | `/api/health` | Público | Estado de la API, de la base de datos y del modelo, con la hora del servidor |
+| `POST` | `/api/auth/login` | Público | Recibe `username` y `password`; devuelve `token` y `user`. Registra "Inicio de sesión" |
+| `POST` | `/api/auth/logout` | Con sesión | Registra "Cierre de sesión" |
+| `GET` | `/api/auth/me` | Con sesión | Usuario de la sesión |
+| `GET` | `/api/model/info` | Con sesión | Si el modelo está cargado, cuándo se entrenó, con qué versión y su exactitud |
+
+El token va en el encabezado `Authorization: Bearer <token>`. Sin token o con uno vencido la API responde 401; con un rol sin permiso, 403. Un usuario desactivado pierde la sesión en su siguiente petición. Los errores siempre llegan como `{ "detail": "..." }` en español, y los de validación agregan `errors` con el campo y el mensaje.
+
+Con `APP_ENV=test` existen además `POST /api/test/reset`, que recarga la semilla demo, y `PATCH /api/test/users/{username}`, que activa o desactiva una cuenta. Los usan las pruebas E2E.
 
 ## Integración continua
 
@@ -128,5 +162,6 @@ GitHub Actions corre en cada PR hacia `dev` y `main`:
 
 - **Front:** lint, pruebas con cobertura y build.
 - **Back:** Ruff y pytest contra PostgreSQL.
+- **E2E:** Playwright en Chromium y Firefox contra la API y PostgreSQL. Si falla, el reporte queda como artefacto de la ejecución.
 
 El resumen de cada ejecución muestra la cobertura de los dos servicios.
