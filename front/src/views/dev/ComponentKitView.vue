@@ -5,6 +5,7 @@ import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
+import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseTabs from '@/components/ui/BaseTabs.vue'
 import BaseTextarea from '@/components/ui/BaseTextarea.vue'
@@ -14,7 +15,9 @@ import PaginationBar from '@/components/ui/PaginationBar.vue'
 import PriorityBadge from '@/components/ui/PriorityBadge.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
+import SidePanel from '@/components/ui/SidePanel.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
+import { useToastStore } from '@/stores/toast'
 import { PRIORITIES, TICKET_STATUSES } from '@/types/ticket'
 
 const TABS = [
@@ -34,6 +37,10 @@ const page = ref(1)
 const name = ref('')
 const area = ref('')
 const description = ref('')
+const panelOpen = ref(false)
+const modalOpen = ref(false)
+
+const toast = useToastStore()
 </script>
 
 <template>
@@ -143,6 +150,47 @@ const description = ref('')
         action-label="Limpiar filtros"
       />
     </BaseCard>
+
+    <BaseCard title="Superpuestos" subtitle="Se cierran con Escape y devuelven el foco al botón">
+      <div class="kit__row">
+        <BaseButton variant="secondary" @click="panelOpen = true">Abrir panel</BaseButton>
+        <BaseButton variant="secondary" @click="modalOpen = true">Abrir modal</BaseButton>
+        <BaseButton
+          variant="secondary"
+          @click="toast.show('Ticket resuelto', 'TCK-197420, 2.00 h')"
+        >
+          Mostrar aviso
+        </BaseButton>
+      </div>
+    </BaseCard>
+
+    <SidePanel
+      v-if="panelOpen"
+      title="Resolver ticket"
+      subtitle="TCK-197420, Servidor principal"
+      @close="panelOpen = false"
+    >
+      <FormField v-slot="{ id }" label="Solución aplicada">
+        <BaseTextarea :id="id" v-model="description" rows="4" />
+      </FormField>
+      <template #footer>
+        <BaseButton variant="secondary" @click="panelOpen = false">Cancelar</BaseButton>
+        <BaseButton @click="panelOpen = false">Confirmar resolución</BaseButton>
+      </template>
+    </SidePanel>
+
+    <BaseModal
+      v-if="modalOpen"
+      title="Reasignar técnico"
+      subtitle="TCK-197420, Roberto García Hernández"
+      @close="modalOpen = false"
+    >
+      <p class="kit__text">El contenido del modal va aquí.</p>
+      <template #footer>
+        <BaseButton variant="secondary" @click="modalOpen = false">Cancelar</BaseButton>
+        <BaseButton @click="modalOpen = false">Reasignar</BaseButton>
+      </template>
+    </BaseModal>
   </main>
 </template>
 
@@ -187,5 +235,10 @@ const description = ref('')
 
 .kit__search {
   width: 260px;
+}
+
+.kit__text {
+  margin: 0;
+  color: var(--color-text-muted);
 }
 </style>

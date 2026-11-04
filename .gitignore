@@ -220,6 +220,12 @@ __marimo__/
 .streamlit/secrets.toml
 
 md/
+CLAUDE.md
+.claude/
+
+# Datos y modelo del back, se regeneran con back/scripts_ml
+back/datos/
+*.joblib
 
 # Node
 node_modules
@@ -251,3 +257,8 @@ dist-ssr
 
 # Vitest
 __screenshots__/
+
+# Playwright
+front/test-results/
+front/playwright-report/
+front/blob-report/

@@ -1,34 +1,28 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { paginate, setMockFailure } from '@/mocks/handlers'
+import { minutesSince } from '@/utils/clock'
+
 import { listBackups, listTables } from '../database'
 import { listEvents, listTicketEvents } from '../events'
-import { mockRequest, paginate, ServiceError, setMockFailure } from '../mockRequest'
-import { getTicket, listTickets } from '../tickets'
+import { ServiceError } from '../http'
+import { countTicketsByPriority, getTicket, listTickets } from '../tickets'
 import { listUsers } from '../users'
-import { minutesSince } from '@/utils/clock'
 
 afterEach(() => setMockFailure(false))
 
-describe('mockRequest', () => {
-  it('devuelve copias para que nadie modifique los datos simulados', async () => {
+describe('respuestas simuladas', () => {
+  it('devuelven copias para que nadie modifique los datos simulados', async () => {
     const first = await getTicket('TCK-200003')
     first!.summary = 'Modificado'
 
     expect((await getTicket('TCK-200003'))?.summary).not.toBe('Modificado')
   })
 
-  it('falla a pedido con un error de servicio', async () => {
+  it('fallan a pedido con un error de servicio', async () => {
     setMockFailure(true)
 
     await expect(listTickets()).rejects.toBeInstanceOf(ServiceError)
-  })
-
-  it('convierte en rechazo un error interno', async () => {
-    const failing = mockRequest(() => {
-      throw new Error('falló')
-    })
-
-    await expect(failing).rejects.toThrow('falló')
   })
 })
 
@@ -107,6 +101,16 @@ describe('listTickets', () => {
   })
 })
 
+describe('countTicketsByPriority', () => {
+  it('cuenta los tickets activos por prioridad', async () => {
+    expect(await countTicketsByPriority()).toEqual({ Crítica: 2, Alta: 2, Media: 2, Baja: 2 })
+  })
+
+  it('cuenta los resueltos por separado', async () => {
+    expect(await countTicketsByPriority(true)).toEqual({ Crítica: 0, Alta: 1, Media: 0, Baja: 0 })
+  })
+})
+
 describe('getTicket', () => {
   it('devuelve null si el ticket no existe', async () => {
     expect(await getTicket('TCK-000000')).toBeNull()
@@ -122,12 +126,27 @@ describe('listEvents', () => {
     expect(items[0]?.time).toBe('2026-10-28 10:14:08')
   })
 
+  it('trae el conteo de ediciones posteriores al cierre y los usuarios sin importar los filtros', async () => {
+    const page = await listEvents({ type: 'Cierre de sesión' })
+
+    expect(page.afterCloseTotal).toBe(1)
+    expect(page.users).toEqual([
+      'Francisco Alejandro Parra Huerta',
+      'Luis Daniel Morales Villarauz',
+      'Roberto García Hernández',
+      'Sarely Xala Hernández',
+      'Sistema',
+    ])
+  })
+
   it.each([
     [{ type: 'Reasignación' }, 1],
     [{ user: 'Sistema' }, 9],
     [{ date: 'hoy' }, 15],
     [{ date: '7' }, 27],
     [{ ticketId: ' tck-115796 ' }, 5],
+    // El ID es exacto, como en la API (B-13).
+    [{ ticketId: 'TCK-1' }, 0],
     [{ afterClose: true }, 1],
   ])('filtra con %o', async (query, expected) => {
     expect((await listEvents(query as object)).total).toBe(expected)
@@ -135,6 +154,13 @@ describe('listEvents', () => {
 })
 
 describe('listTicketEvents', () => {
+  it('responde 404 si el ticket no existe, como la API', async () => {
+    const error = (await listTicketEvents('TCK-000000').catch((caught) => caught)) as ServiceError
+
+    expect(error).toBeInstanceOf(ServiceError)
+    expect(error.status).toBe(404)
+  })
+
   it('devuelve la línea de tiempo en orden cronológico', async () => {
     const timeline = await listTicketEvents('TCK-115796')
 
@@ -158,17 +184,17 @@ describe('datos de referencia', () => {
     )
   })
 
-  it('las tablas suman los 486 MB del prototipo', async () => {
+  it('las tablas traen sus filas, tamaño y columnas', async () => {
     const tables = await listTables()
-    const total = tables.reduce((sum, table) => sum + parseFloat(table.size), 0)
 
-    expect(total).toBeCloseTo(486)
+    expect(tables.map((table) => table.name)).toEqual(['tickets', 'events', 'backups'])
+    expect(tables[0]!.columns[0]!.type).toBe('character varying(10)')
   })
 
   it('el respaldo fallido tiene su reintento', async () => {
     const backups = await listBackups()
 
-    expect(backups.filter((backup) => backup.status === 'Fallido')).toHaveLength(1)
-    expect(backups.filter((backup) => backup.isRetry)).toHaveLength(1)
+    const failed = backups.find((backup) => backup.status === 'Fallido')!
+    expect(backups.find((backup) => backup.retryOfId === failed.id)?.status).toBe('Exitoso')
   })
 })

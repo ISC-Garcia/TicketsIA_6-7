@@ -1,6 +1,16 @@
 import type { RouteRecordRaw } from 'vue-router'
 
 import type { Role } from '@/types/user'
+import { DASHBOARD_PERIODS, type DashboardPeriod } from '@/types/dashboard'
+import {
+  MONITOR_PERIODS,
+  MONITOR_TABS,
+  type MonitorPeriod,
+  type MonitorTab,
+} from '@/types/database'
+import { MODEL_TABS, type ModelTab } from '@/types/model'
+import { parseEventFilters } from '@/utils/eventFilters'
+import { parseTicketFilters } from '@/utils/ticketFilters'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -12,8 +22,19 @@ declare module 'vue-router' {
   }
 }
 
-// Vista temporal: cada historia la reemplaza por su pantalla.
-const placeholder = () => import('@/views/PlaceholderView.vue')
+// Un periodo desconocido en la URL vuelve al de por omisión.
+const parseDashboardPeriod = (value: unknown): DashboardPeriod =>
+  DASHBOARD_PERIODS.find((period) => period === value) ?? 'mes'
+
+const parseMonitorPeriod = (value: unknown): MonitorPeriod =>
+  MONITOR_PERIODS.find((period) => period === value) ?? '24h'
+
+const parseMonitorTab = (value: unknown): MonitorTab =>
+  MONITOR_TABS.find((tab) => tab === value) ?? 'estado'
+
+// Igual con la pestaña del modelo: una desconocida abre Métricas, como dice el breadcrumb.
+const parseModelTab = (value: unknown): ModelTab =>
+  MODEL_TABS.find((tab) => tab === value) ?? 'metricas'
 
 export const ROLE_HOME: Record<Role, string> = {
   tecnico: 'bandeja',
@@ -29,6 +50,11 @@ export const routes: RouteRecordRaw[] = [
     meta: { guest: true },
   },
   {
+    path: '/cambiar-contrasena',
+    name: 'cambiar-contrasena',
+    component: () => import('@/views/ChangePasswordView.vue'),
+  },
+  {
     path: '/',
     component: () => import('@/layouts/AppLayout.vue'),
     redirect: { name: 'login' },
@@ -36,43 +62,49 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'registrar',
         name: 'registrar',
-        component: placeholder,
+        component: () => import('@/views/RegisterView.vue'),
         meta: { roles: ['tecnico'], title: 'Registrar ticket' },
       },
       {
         path: 'bandeja',
         name: 'bandeja',
-        component: placeholder,
+        component: () => import('@/views/InboxView.vue'),
+        props: (route) => ({ filters: parseTicketFilters(route.query) }),
         meta: { roles: ['tecnico'], title: 'Bandeja de incidentes' },
       },
       {
         path: 'bandeja/:id',
         name: 'bandeja-detalle',
-        component: placeholder,
+        component: () => import('@/views/TicketDetailView.vue'),
+        props: true,
         meta: { roles: ['tecnico'], title: 'Detalle de ticket', parent: 'bandeja' },
       },
       {
         path: 'general',
         name: 'general',
-        component: placeholder,
+        component: () => import('@/views/InboxView.vue'),
+        props: (route) => ({ filters: parseTicketFilters(route.query), mode: 'coordinador' }),
         meta: { roles: ['coordinador'], title: 'Bandeja general' },
       },
       {
         path: 'general/:id',
         name: 'general-detalle',
-        component: placeholder,
+        component: () => import('@/views/TicketDetailView.vue'),
+        props: true,
         meta: { roles: ['coordinador'], title: 'Detalle de ticket', parent: 'general' },
       },
       {
         path: 'dashboard',
         name: 'dashboard',
-        component: placeholder,
+        component: () => import('@/views/DashboardView.vue'),
+        props: (route) => ({ period: parseDashboardPeriod(route.query.periodo) }),
         meta: { roles: ['coordinador'], title: 'Dashboard de carga de trabajo' },
       },
       {
         path: 'modelo/:tab?',
         name: 'modelo',
-        component: placeholder,
+        component: () => import('@/views/ModelView.vue'),
+        props: (route) => ({ tab: parseModelTab(route.params.tab) }),
         meta: {
           roles: ['coordinador'],
           title: 'Rendimiento del modelo',
@@ -87,13 +119,17 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'usuarios',
         name: 'usuarios',
-        component: placeholder,
+        component: () => import('@/views/UsersView.vue'),
         meta: { roles: ['coordinador'], title: 'Gestión de usuarios' },
       },
       {
         path: 'monitoreo/:tab?',
         name: 'monitoreo',
-        component: placeholder,
+        component: () => import('@/views/MonitoringView.vue'),
+        props: (route) => ({
+          tab: parseMonitorTab(route.params.tab),
+          period: parseMonitorPeriod(route.query.periodo),
+        }),
         meta: {
           roles: ['auditor'],
           title: 'Monitoreo de base de datos',
@@ -103,13 +139,18 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'bitacora',
         name: 'bitacora',
-        component: placeholder,
+        component: () => import('@/views/EventLogView.vue'),
+        props: (route) => ({ filters: parseEventFilters(route.query) }),
         meta: { roles: ['auditor'], title: 'Bitácora de registros' },
       },
       {
         path: 'historial/:id?',
         name: 'historial',
-        component: placeholder,
+        component: () => import('@/views/TicketHistoryView.vue'),
+        // El ID se normaliza: "tck-115796" en la URL abre TCK-115796.
+        props: (route) => ({
+          id: typeof route.params.id === 'string' ? route.params.id.toUpperCase() : undefined,
+        }),
         meta: { roles: ['auditor'], title: 'Historial de ticket' },
       },
     ],

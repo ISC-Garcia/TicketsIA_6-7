@@ -1,4 +1,4 @@
-import { nextTick, ref } from 'vue'
+import { ref } from 'vue'
 
 const nextIndex = (key: string, index: number, length: number): number | null => {
   if (key === 'ArrowRight' || key === 'ArrowDown') return (index + 1) % length
@@ -9,6 +9,7 @@ const nextIndex = (key: string, index: number, length: number): number | null =>
 }
 
 // Navegación con flechas para grupos donde solo la opción activa recibe foco con Tab.
+// El contenedor solo debe tener las opciones como hijos, en el mismo orden.
 export function useRovingSelection<T extends string>(
   options: () => readonly { key: T }[],
   current: () => T,
@@ -16,15 +17,15 @@ export function useRovingSelection<T extends string>(
 ) {
   const container = ref<HTMLElement | null>(null)
 
-  async function onKeydown(event: KeyboardEvent) {
+  function onKeydown(event: KeyboardEvent) {
     const keys = options().map((option) => option.key)
     const target = nextIndex(event.key, keys.indexOf(current()), keys.length)
     if (target === null) return
 
     event.preventDefault()
     select(keys[target]!)
-    await nextTick()
-    container.value?.querySelector<HTMLElement>('[tabindex="0"]')?.focus()
+    // Se enfoca por posición: la selección puede tardar en volver, por ejemplo si pasa por la URL.
+    ;(container.value?.children[target] as HTMLElement | undefined)?.focus()
   }
 
   return { container, onKeydown }

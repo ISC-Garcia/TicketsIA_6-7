@@ -1,4 +1,4 @@
-import type { Priority, Ticket } from '@/types/ticket'
+import type { Analysis, Priority, Ticket } from '@/types/ticket'
 
 import { ROBERTO, SARELY } from './users'
 
@@ -14,7 +14,10 @@ const probabilities = (
   Baja: low,
 })
 
-export const tickets: Ticket[] = [
+// Los tickets de la demo siempre tienen técnico y análisis; los históricos del dataset no.
+export type DemoTicket = Ticket & { technician: string; analysis: Analysis }
+
+export const tickets: DemoTicket[] = [
   {
     id: 'TCK-200003',
     priority: 'Crítica',

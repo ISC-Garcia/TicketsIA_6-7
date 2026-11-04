@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import BaseBadge from '@/components/ui/BaseBadge.vue'
+import { computed } from 'vue'
+
 import { useBreadcrumbs } from '@/composables/useBreadcrumbs'
-import { now } from '@/utils/clock'
+import { useNow } from '@/composables/useNow'
 import { formatLongDate } from '@/utils/format'
 
 defineProps<{ readOnly: boolean }>()
 
 const breadcrumbs = useBreadcrumbs()
-const today = formatLongDate(now())
+const current = useNow()
+const today = computed(() => formatLongDate(current.value))
 </script>
 
 <template>

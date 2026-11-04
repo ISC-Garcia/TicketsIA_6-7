@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  front:
+    name: Front
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: front
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: |
+          npx oxlint .
+          npx eslint .
+          npx prettier --check src/
+      - name: Pruebas con cobertura
+        run: npm run test:coverage
+      - name: Build
+        run: npm run build
+      - name: Resumen de cobertura
+        if: always()
+        run: |
+          node -e '
+            const fs = require("node:fs")
+            const path = "coverage/coverage-summary.json"
+            if (!fs.existsSync(path)) process.exit(0)
+            const total = JSON.parse(fs.readFileSync(path, "utf8")).total
+            const rows = ["lines", "branches", "functions", "statements"]
+              .map((key) => `| ${key} | ${total[key].pct} % |`)
+            console.log(["### Cobertura del front", "", "| Métrica | Cobertura |", "| --- | --- |", ...rows].join("\n"))
+          ' >> "$GITHUB_STEP_SUMMARY"
+
+  back:
+    name: Back
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: back
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: tickets
+          POSTGRES_PASSWORD: tickets
+          POSTGRES_DB: tickets_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tickets -d tickets_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      APP_ENV: test
+      # Las pruebas solo usan TEST_DATABASE_URL; DATABASE_URL debe existir y ser distinta.
+      DATABASE_URL: postgresql://tickets:tickets@localhost:5432/tickets
+      TEST_DATABASE_URL: postgresql://tickets:tickets@localhost:5432/tickets_test
+      # Clave solo para las pruebas: nunca firma sesiones reales.
+      JWT_SECRET: clave-de-pruebas-del-ci-no-usar-en-produccion
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: back/uv.lock
+      - run: uv sync --locked
+      - name: Lint
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+      - name: Pruebas con cobertura
+        run: uv run pytest --cov --cov-report=term --cov-report=markdown-append:"$GITHUB_STEP_SUMMARY"
+
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    needs: [front, back]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: tickets
+          POSTGRES_PASSWORD: tickets
+          POSTGRES_DB: tickets_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tickets -d tickets_e2e"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      E2E_DATABASE_URL: postgresql://tickets:tickets@localhost:5432/tickets_e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: back/uv.lock
+      - run: uv sync --locked
+        working-directory: back
+      # El modelo no se versiona: las E2E usan uno de 10,000 registros (unos 10 s).
+      - name: Modelo para las E2E
+        run: uv run python -m app.ml.train --registros 10000 --carpeta datos
+        working-directory: back
+      - run: npm ci
+        working-directory: front
+      - run: npx playwright install --with-deps chromium firefox
+        working-directory: front
+      - name: Pruebas E2E en Chromium y Firefox
+        run: npm run test:e2e
+        working-directory: front
+      - name: Reporte de Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            front/playwright-report/
+            front/test-results/
+          retention-days: 7

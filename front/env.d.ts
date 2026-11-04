@@ -2,7 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_DEMO_MODE?: string
-  readonly VITE_MOCK_FAILURE?: string
+  readonly VITE_API_URL?: string
 }
 
 interface ImportMeta {

@@ -7,6 +7,10 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './router'
+import { syncClockWithServer } from './services/health'
+
+// Antes de mostrar nada, el front toma la hora del servidor como referencia.
+await syncClockWithServer()
 
 const app = createApp(App)
 

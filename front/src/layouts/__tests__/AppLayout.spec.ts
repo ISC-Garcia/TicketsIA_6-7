@@ -4,9 +4,12 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import App from '@/App.vue'
+import { TICK_MS } from '@/composables/useNow'
+import { forgetVisits, rememberVisit } from '@/router/lastVisited'
 import { routes } from '@/router/routes'
 import { useSessionStore } from '@/stores/session'
 import type { Role } from '@/types/user'
+import { syncClock } from '@/utils/clock'
 
 async function mountAt(path: string, role: Role = 'tecnico') {
   const pinia = createPinia()
@@ -36,6 +39,7 @@ const breadcrumbs = (wrapper: Awaited<ReturnType<typeof mountAt>>['wrapper']) =>
 
 describe('AppLayout', () => {
   beforeEach(() => {
+    forgetVisits()
     localStorage.clear()
     sessionStorage.clear()
   })
@@ -99,12 +103,35 @@ describe('AppLayout', () => {
     expect(wrapper.find('.header__date').text()).toBe('Miércoles, 28 de octubre de 2026')
   })
 
+  it('E11-02: la fecha es la del servidor y cambia sola al pasar la medianoche', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    // Horas locales, sin zona: la prueba vale en cualquier zona horaria del equipo.
+    syncClock(new Date('2026-11-03T23:59:50').toISOString())
+    const { wrapper } = await mountAt('/bandeja')
+    expect(wrapper.find('.header__date').text()).toBe('Martes, 3 de noviembre de 2026')
+
+    syncClock(new Date('2026-11-04T00:00:20').toISOString())
+    await vi.advanceTimersByTimeAsync(TICK_MS)
+
+    expect(wrapper.find('.header__date').text()).toBe('Miércoles, 4 de noviembre de 2026')
+    vi.useRealTimers()
+  })
+
   describe('breadcrumbs', () => {
     it('una sección simple es solo texto', async () => {
       const { wrapper } = await mountAt('/dashboard', 'coordinador')
 
       expect(breadcrumbs(wrapper)).toEqual(['Dashboard de carga de trabajo'])
       expect(wrapper.find('a.header__crumb').exists()).toBe(false)
+    })
+
+    it('el breadcrumb del detalle vuelve a la bandeja con sus filtros', async () => {
+      rememberVisit({ name: 'bandeja', query: { prioridad: 'Alta', q: 'red' }, params: {} })
+      const { wrapper } = await mountAt('/bandeja/TCK-200011')
+
+      expect(wrapper.find('a.header__crumb').attributes('href')).toBe(
+        '/bandeja?prioridad=Alta&q=red',
+      )
     })
 
     it('el detalle enlaza a su bandeja y muestra el ID', async () => {
@@ -116,13 +143,13 @@ describe('AppLayout', () => {
     })
 
     it.each([
-      ['/monitoreo', 'Estado general'],
-      ['/monitoreo/tablas', 'Tablas'],
-      ['/monitoreo/no-existe', 'Estado general'],
+      ['/modelo', 'Métricas'],
+      ['/modelo/matriz', 'Matriz de confusión'],
+      ['/modelo/no-existe', 'Métricas'],
     ])('%s muestra la pestaña %s', async (path, tab) => {
-      const { wrapper } = await mountAt(path, 'auditor')
+      const { wrapper } = await mountAt(path, 'coordinador')
 
-      expect(breadcrumbs(wrapper)).toEqual(['Monitoreo de base de datos', tab])
+      expect(breadcrumbs(wrapper)).toEqual(['Rendimiento del modelo', tab])
     })
   })
 
