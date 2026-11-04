@@ -1,0 +1,10 @@
+# Respaldo diario a las 03:00, hora de la mesa de ayuda.
+[Unit]
+Description=Respaldo diario del Sistema de Tickets
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 America/Mexico_City
+Persistent=true
+
+[Install]
+WantedBy=timers.target

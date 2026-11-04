@@ -1,0 +1,18 @@
+# API de FastAPI como servicio de systemd. Se instala en /etc/systemd/system/.
+# Escucha solo en la propia máquina: Caddy la publica en /api.
+[Unit]
+Description=API del Sistema de Tickets de Soporte Técnico
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/tickets/back
+# --proxy-headers toma la IP real de X-Forwarded-For, que pone Caddy: el límite de intentos de
+# login la necesita para no tratar a todos como el mismo cliente.
+ExecStart=/home/ubuntu/tickets/back/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

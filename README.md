@@ -303,6 +303,92 @@ GitHub Actions corre en cada PR hacia `dev` y `main`:
 
 El resumen de cada ejecución muestra la cobertura de los dos servicios.
 
+## Desplegar en una máquina virtual
+
+Así está desplegado para la revisión: una instancia `m7i-flex.large` de AWS EC2 (2 vCPU, 8 GB) con Ubuntu 24.04. Funciona igual en cualquier máquina con Ubuntu y 2 GB de RAM o más; la API ocupa unos 420 MB con el modelo cargado.
+
+```text
+Internet ──443──> Caddy ──┬── /api/*  → API (uvicorn, 127.0.0.1:8000, systemd)
+                          └── resto   → front compilado (/var/www/tickets)
+                 API ────> PostgreSQL 17 (Docker, 127.0.0.1:5432)
+```
+
+El front y la API comparten dominio, así que no hace falta CORS entre ellos y `VITE_API_URL` va vacía. Caddy obtiene el certificado HTTPS solo. Sin dominio propio sirve `sslip.io`: la IP `77.113.193.240` se escribe `77-113-193-240.sslip.io`.
+
+**1. Abrir los puertos:** 80 y 443 para todo el mundo, y 22 solo para tu IP. El 5432 no se abre.
+
+**2. Instalar el sistema** (en la máquina):
+
+```sh
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y docker.io docker-compose-v2 rsync curl gnupg
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# pg_dump 17 desde el repositorio de PostgreSQL: el de Ubuntu es más viejo que el servidor
+sudo install -d /usr/share/postgresql-common/pgdg
+sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+# Caddy y Node 22
+curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y postgresql-client-17 caddy nodejs
+```
+
+**3. Copiar el código y los datos** (desde tu equipo). El modelo y el CSV no están en git:
+
+```sh
+git ls-files > /tmp/archivos.txt
+printf "back/datos/modelo_tickets.joblib\nback/datos/metricas.json\nback/datos/tickets_soporte_procesado.csv\n" >> /tmp/archivos.txt
+rsync -az --files-from=/tmp/archivos.txt -e "ssh -i llave.pem" ./ ubuntu@<IP>:/home/ubuntu/tickets/
+```
+
+**4. Configurar y levantar el back** (en la máquina, en `~/tickets/back`). Crea `back/.env` con claves nuevas; nunca reutilices las de desarrollo:
+
+```sh
+DBPASS=$(openssl rand -hex 24)
+cat > .env <<EOF
+APP_ENV=production
+POSTGRES_PASSWORD=$DBPASS
+POSTGRES_PORT=127.0.0.1:5432
+DATABASE_URL=postgresql://tickets:$DBPASS@localhost:5432/tickets
+TIMEZONE=America/Mexico_City
+CORS_ORIGINS=["https://<dominio>"]
+JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')
+EOF
+chmod 600 .env
+sudo docker compose up -d                 # PostgreSQL solo en 127.0.0.1
+uv sync --no-dev --frozen
+uv run --no-dev alembic upgrade head
+# Una sola vez: en producción la semilla está bloqueada a propósito.
+APP_ENV=development uv run --no-dev python -m app.cli seed completo
+```
+
+**5. Servicios, front y Caddy:**
+
+```sh
+cd ~/tickets
+sudo cp deploy/tickets-api.service deploy/tickets-backup.service deploy/tickets-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now tickets-api tickets-backup.timer      # API y respaldo diario a las 03:00
+cd front && npm ci && VITE_DEMO_MODE=true npm run build-only        # VITE_DEMO_MODE muestra las cuentas demo
+sudo mkdir -p /var/www/tickets && sudo rsync -a --delete dist/ /var/www/tickets/
+sed "s/^DOMINIO /<dominio> /" ../deploy/Caddyfile | sudo tee /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+**Comprobar:** `curl https://<dominio>/api/health` debe decir `"database":true` y `"modelLoaded":true`.
+
+**Mantenimiento:**
+
+| Para | Comando |
+| --- | --- |
+| Ver la API | `systemctl status tickets-api` y `journalctl -u tickets-api -f` |
+| Respaldar ahora | `sudo systemctl start tickets-backup` |
+| Actualizar el código | Repite el paso 3, luego `uv sync --no-dev --frozen`, `alembic upgrade head` y `sudo systemctl restart tickets-api`; para el front, repite su build y su copia |
+| Volver a empezar los datos | `APP_ENV=development uv run --no-dev python -m app.cli seed completo` |
+
+Los respaldos quedan en `back/datos/respaldos/` de la máquina: si la borras, se pierden con ella.
+
 ## Demo por rol
 
 Con la semilla completa cargada (`uv run python -m app.cli seed completo`), la API y el front en marcha. Todas las cuentas usan `demo2026`.

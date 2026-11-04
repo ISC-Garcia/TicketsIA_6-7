@@ -1,0 +1,22 @@
+# Caddy sirve el front y publica la API en el mismo dominio: no hace falta CORS entre ellos.
+# DOMINIO se reemplaza al instalar, por ejemplo 77-113-193-240.sslip.io. Caddy obtiene el
+# certificado HTTPS de Let's Encrypt por sí solo.
+DOMINIO {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle {
+		root * /var/www/tickets
+		# Las rutas de Vue (/bandeja, /monitoreo/tablas...) las resuelve index.html.
+		try_files {path} /index.html
+		file_server
+		header {
+			X-Content-Type-Options nosniff
+			X-Frame-Options DENY
+			Referrer-Policy no-referrer
+		}
+	}
+}
